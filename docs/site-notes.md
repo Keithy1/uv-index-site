@@ -128,3 +128,33 @@ Source design doc: D:\keith\Documents\CODING PROJECTS\SITE BUILD RESEARCH\UV-Ind
 - enviro.epa.gov/envirofacts/uv/search = WAF-blocked for plain fetches (403).
 - iaspub.epa.gov efservice responds (mixed 404/502 today) — endpoint pinning is Phase 1 task #1
   (try metadata model page + dmapservice schema names + proper headers/backoff).
+
+## Build log (23 Oct 2026)
+
+### Verified at adapter level
+- EPA dmapservice (live, 200): `https://data.epa.gov/dmapservice/getEnvirofactsUVHOURLY/CITY/{city}/STATE/{st}/JSON`
+  rows: {CITY, DATE_TIME ("Oct/23/2026 07 AM" — city-local, no offset), ORDER, STATE, UV_VALUE (int), ZIP}.
+  Daily: `/getEnvirofactsUVDAILY/...` rows: {CITY, DATE, STATE, UV_ALERT, UV_INDEX (string)}.
+  City-local times are attached to the city's IANA zone before storing UTC (never hard-coded offsets).
+- CAMS (ECMWF forum, official): variables `uvbed` (214002) and `uvbedcs` (214003) are dose RATES in
+  W/m2, instantaneous. UV index = rate / 0.025 W/m2 = rate * 40 (WHO definition).
+  ADS API base: https://ads.atmosphere.copernicus.eu/api (live; /api/v2 404s). Transport to be
+  validated with Keith's key at first deploy; payload + conversion are unit-tested.
+- ARPANSA feed re-verified: 16 stations, all fields as designed (status, utcdatetime UTC).
+
+### Repo and CI
+- Repo public: https://github.com/Keithy1/uv-index-site — unlimited free Actions minutes.
+- Workflow `.github/workflows/fetch-and-publish.yml`: cron */5, tests, ARPANSA+EPA+CAMS fetches,
+  health.json, R2 upload (bucket `uvatlas-prod`) gated on secrets CF_API_TOKEN/CF_ACCOUNT_ID/ADS_API_KEY.
+- Run fetchers as modules: `python -m fetch.main --source X --out data` (relative imports break
+  `python fetch/main.py`). Tests: `python -m unittest discover -s fetch/tests -t . -v` (16 tests green).
+- Python round() is banker's rounding: band code uses floor(uvi + 0.5) so 2.5 -> Moderate,
+  10.5 -> Extreme exactly per design doc.
+
+### Sandbox git how-to (this machine)
+- TLS: always `-c http.sslBackend=openssl`.
+- Push: inline-token URL (`https://Keithy1:$TOKEN@github.com/...`), `$TOKEN = gh auth token`,
+  plus env GIT_CONFIG_NOSYSTEM=1 and GIT_TERMINAL_PROMPT=0 (credential helpers spawn sh/processes
+  which the sandbox blocks; git-credential-store only works when invoked directly).
+- NEVER commit credential files: GitHub push protection (GH013) rejects the push; keep
+  `.git-creds`/`.git-credentials` gitignored (they are).

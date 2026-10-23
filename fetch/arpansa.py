@@ -10,20 +10,35 @@ Credits: "UV observations courtesy of ARPANSA" (see docs/site-notes.md).
 """
 from __future__ import annotations
 
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
 from .common import Record, check_uvi, utc_now
 
-URL = "https://uvdata.arpansa.gov.au/xml/uvvalues.xml"
+# Primary feed, plus the ARPANSA website mirror as a fallback.
+URLS = [
+    "https://uvdata.arpansa.gov.au/xml/uvvalues.xml",
+    "https://www.arpansa.gov.au/uvindex/realtime/xml/uvvalues.xml",
+]
 UA = {"User-Agent": "Mozilla/5.0 (compatible; uvatlas-fetcher/1.0)"}
+TIMEOUT = 60
+RETRIES = 2
 
 
 def fetch() -> bytes:
-    req = urllib.request.Request(URL, headers=UA)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read()
+    last: Exception | None = None
+    for attempt in range(RETRIES + 1):
+        for url in URLS:
+            try:
+                req = urllib.request.Request(url, headers=UA)
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                    return resp.read()
+            except Exception as exc:  # noqa: BLE001 - any transport error: try next
+                last = exc
+        time.sleep(5 * (attempt + 1))  # backoff before the next full round
+    raise last if last else RuntimeError("ARPANSA fetch failed")
 
 
 def parse(xml_bytes: bytes, fetched_at: datetime | None = None) -> list[Record]:

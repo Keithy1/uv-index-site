@@ -29,6 +29,7 @@ def write_records(out_dir: str, source: str, records: list) -> int:
 
 
 def write_latest(out_dir: str, by_source: dict[str, list]) -> None:
+    os.makedirs(out_dir, exist_ok=True)  # may not exist yet if every source failed
     snapshot = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sources": {
