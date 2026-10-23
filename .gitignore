@@ -6,3 +6,4 @@ data/
 .npm-cache/
 .DS_Store
 .git-creds
+.git-credentials

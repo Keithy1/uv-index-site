@@ -33,17 +33,17 @@ jobs:
           python-version: "3.12"
 
       - name: Tests
-        run: python -m unittest discover -s fetch/tests -v
+        run: python -m unittest discover -s fetch/tests -t . -v
 
       - name: Fetch ARPANSA (measured, AU)
-        run: python fetch/main.py --source arpansa --out data
+        run: python -m fetch.main --source arpansa --out data
 
       - name: Fetch EPA (forecast, US)
-        run: python fetch/main.py --source epa --out data
+        run: python -m fetch.main --source epa --out data
 
       - name: Fetch CAMS (forecast)
         if: env.ADS_API_KEY != ''
-        run: python fetch/main.py --source cams --out data
+        run: python -m fetch.main --source cams --out data
 
       - name: Health file
         run: python fetch/health.py data
