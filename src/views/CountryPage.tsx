@@ -254,7 +254,7 @@ function CountryOutline({
   measured: boolean;
 }) {
   const hasTomorrow = rows.some((r) => r.tomorrow !== null);
-  const todayLabel = measured ? "UV now" : "peak today";
+  const todayLabel = measured ? "UV now" : "the forecast for this hour";
 
   return (
     <div class="daymap">
@@ -373,7 +373,7 @@ export function CountryPage(view: CountryView) {
             <div class="n">{formatUvi(highest.uvi!)}</div>
             <div>
               <p style="margin:0">
-                {view.measured ? "Highest now: " : "Highest forecast today: "}
+                {view.measured ? "Highest now: " : "Highest now, forecast: "}
                 {/* Same rule as the table: only link where a city page
                     exists. This one was missed first time round. */}
                 <strong>
@@ -419,13 +419,8 @@ export function CountryPage(view: CountryView) {
         <thead>
           <tr>
             <th scope="col">City</th>
-            {view.measured && <th scope="col">UV now</th>}
-            {/* "Peak today" only collapses on a phone where there is also a
-                "UV now" column to carry today. On a forecast-only country it
-                IS today's figure, and the table is sorted by it -- hiding it
-                left the US page showing tomorrow alone, in what looked like
-                a random order. */}
-            <th scope="col" class={view.measured ? "hide" : undefined}>Peak today</th>
+            <th scope="col">{view.measured ? "UV now" : "Now (forecast)"}</th>
+            <th scope="col" class="hide">Peak today</th>
             <th scope="col">Tomorrow</th>
             {view.measured && <th scope="col" class="hide">Measured</th>}
           </tr>
@@ -442,8 +437,8 @@ export function CountryPage(view: CountryView) {
                   r.location.name
                 )}
               </th>
-              {view.measured && <UviCell uvi={r.uvi} />}
-              <td class={view.measured ? "hide" : undefined}><Uvi uvi={r.peak} /></td>
+              <UviCell uvi={r.uvi} />
+              <td class="hide"><Uvi uvi={r.peak} /></td>
               <td><Uvi uvi={r.tomorrow} /></td>
               {view.measured && (
                 <td class="t hide">
@@ -456,11 +451,13 @@ export function CountryPage(view: CountryView) {
         </tbody>
       </table>
       <p class="small muted">
+        Sorted by the current level, highest first, then by today's peak.{" "}
         {view.measured
-          ? "Sorted by the current reading, highest first. Times are local to each city."
-          : "Sorted by today's forecast peak, highest first."}{" "}
+          ? "Times are local to each city."
+          : "There is no measured UV source for the United States, so “now” is " +
+            "the forecast for the current hour rather than a measurement."}{" "}
         Every figure carries its own band. Peak figures are the highest the UV index
-        reaches in that city's own day; a dash means the forecast does not cover it.
+        reaches in that city’s own day; a dash means the forecast does not cover it.
       </p>
 
       <p class="small">

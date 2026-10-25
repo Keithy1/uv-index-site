@@ -300,6 +300,22 @@ app.get("/:country/", async (c) => {
     );
     const peak = peaks.length ? Math.max(...peaks.map((p) => p.uvi)) : null;
 
+    // Where there is no instrument, the nearest hourly forecast stands in for
+    // "now". It is a forecast and the page says so; a daily peak alone tells
+    // someone checking at 8 am nothing useful.
+    const NEAR_MS = 90 * 60 * 1000;
+    let nowForecast: number | null = null;
+    if (!page.measured) {
+      let best = Number.POSITIVE_INFINITY;
+      for (const pt of row?.forecast ?? []) {
+        const gap = Math.abs(Date.parse(pt.validAt) - now.getTime());
+        if (gap < best && gap <= NEAR_MS) {
+          best = gap;
+          nowForecast = pt.uvi;
+        }
+      }
+    }
+
     // Tomorrow, in the city's own day. A partial day yields nothing rather
     // than a truncated maximum presented as a peak.
     const tomorrowKey = localDateKey(
@@ -318,8 +334,9 @@ app.get("/:country/", async (c) => {
 
     return {
       location,
-      // Where there is no measured source, the headline figure IS the peak.
-      uvi: page.measured ? (row?.latest?.uvi ?? null) : peak,
+      // Measured where an instrument exists, the nearest hourly forecast
+      // where one does not.
+      uvi: page.measured ? (row?.latest?.uvi ?? null) : nowForecast,
       validAt: page.measured ? (row?.latest?.validAt ?? null) : null,
       stale: page.measured ? (row?.latest?.stale ?? false) : false,
       peak,
@@ -328,9 +345,14 @@ app.get("/:country/", async (c) => {
     };
   });
 
-  // Highest first; cities with no reading sink to the bottom rather than
-  // being dropped, because a missing station is information too.
-  rows.sort((a, b) => (b.uvi ?? -1) - (a.uvi ?? -1));
+  // Highest now first, then by today's peak. The tie-break matters at night:
+  // every city reads 0 after dark, and without it the order would be
+  // arbitrary just when the page is least able to explain itself.
+  // Cities with no reading sink to the bottom rather than being dropped,
+  // because a missing station is information too.
+  rows.sort(
+    (a, b) => (b.uvi ?? -1) - (a.uvi ?? -1) || (b.peak ?? -1) - (a.peak ?? -1),
+  );
 
   c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
   return c.html(
