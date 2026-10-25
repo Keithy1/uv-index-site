@@ -2,7 +2,7 @@ name: cams-validate
 
 # Compares a CAMS forecast against what ARPANSA actually measured, hour by hour.
 # This is the check that decides whether a CAMS-derived UV index may be
-# published at all. It answers two separate questions:
+# published. It answers two separate questions:
 #
 #   1. Is UVI = rate x 40 right? Fitted on cloudless hours only, so a cloud
 #      error cannot be mistaken for a units error. The GRIB carries no units,
@@ -10,27 +10,25 @@ name: cams-validate
 #   2. How accurate is the forecast? Bias and mean absolute error across all
 #      daylight hours. This is the figure the methods page should quote.
 #
-# 2025 is the most recent complete year of ARPANSA history on data.gov.au.
+# 2025 is the most recent complete year of ARPANSA history on data.gov.au, so
+# both default periods sit inside it: early January (peak summer, the season
+# the site is built for) and mid-October (spring).
 
 on:
   workflow_dispatch:
     inputs:
       station:
-        description: "ARPANSA station"
+        description: "Station key, or 'all' for every ARPANSA station"
         required: true
-        default: "au-syd"
-        type: choice
-        options:
-          [au-adl, au-ali, au-bri, au-can, au-dar, au-emd, au-gco,
-           au-kin, au-mel, au-new, au-per, au-syd, au-tow]
-      date:
-        description: "First day (YYYY-MM-DD). 2025 has full measured history."
+        default: "all"
+      dates:
+        description: "Comma-separated first days, one per period"
         required: true
-        default: "2025-10-20"
+        default: "2025-01-08,2025-10-14"
       days:
-        description: "How many days"
+        description: "Days per period"
         required: true
-        default: "7"
+        default: "14"
 
 permissions:
   contents: read
@@ -38,7 +36,9 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Thirteen yearly CSVs are ~270 MB in total and each CAMS retrieve queues
+    # before it downloads, so this is far slower than a single-station run.
+    timeout-minutes: 120
     env:
       ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
     steps:
@@ -52,9 +52,19 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt
 
+      # ARPANSA's yearly files never change once published, so caching them
+      # turns a ~270 MB download into a few seconds on later runs.
+      - name: Cache ARPANSA history
+        uses: actions/cache@v4
+        with:
+          path: arpansa-cache
+          key: arpansa-history-v1-${{ inputs.dates }}
+          restore-keys: |
+            arpansa-history-v1-
+
       - name: Validate
         run: |
           python -m fetch.cams_validate \
             --station "${{ inputs.station }}" \
-            --date "${{ inputs.date }}" \
+            --dates "${{ inputs.dates }}" \
             --days "${{ inputs.days }}"
