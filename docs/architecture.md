@@ -108,6 +108,78 @@ now encoded in `src/sources/arpansa.ts`:
 A fixture of that feed is kept at
 `test/fixtures/arpansa-uvvalues-slow-stations.xml` so the behaviour stays pinned.
 
+## Does the CAMS forecast agree with reality?
+
+Validated 25 October 2026 against ARPANSA's measured history for 14–27 October
+2025, four stations, via the `cams-validate` workflow.
+
+### Forecast accuracy — good enough to publish
+
+| Station | Hours | Mean bias | Mean abs error | Within 1.0 UVI |
+|---|---|---|---|---|
+| Sydney | 132 | +0.48 | 0.88 | 67% |
+| Perth | 126 | +0.18 | 0.96 | 70% |
+| Melbourne | 118 | +0.15 | 0.92 | 64% |
+| Darwin | 126 | +0.57 | 1.32 | 50% |
+
+Daily peaks are better than the hourly figures suggest: ten of Sydney's fourteen
+days landed within ±0.6 UVI of measured. The large misses are all CAMS
+under-forecasting cloud (20 October: forecast 8.2, measured 6.2), which is a
+cloud-forecasting limitation rather than a UV one. Darwin is the weakest, as
+expected for the tropics in build-up season.
+
+These are the figures the methods page should quote.
+
+### The conversion is sound; the model reads about 12% high
+
+Fitting measured UVI against the raw dose rate on cloudless hours gives the
+multiplier the data itself implies, against the 40 that `UVI = rate / 0.025 W/m²`
+assumes:
+
+| Station | Cloudless hours | Implied multiplier |
+|---|---|---|
+| Melbourne | 21 | 37.6 |
+| Perth | 47 | 36.3 |
+| Sydney | 53 | 35.3 |
+| Darwin | 22 | 34.0 |
+
+Mean 35.8, spread 34.0–37.6, standard deviation 1.5, and **every station below
+40**. The automated check flags anything past 10% as "NOT consistent", which
+fires for Sydney and Darwin — but that threshold is answering the wrong
+question.
+
+**This is not a unit error.** A unit error is never 12%: joules accumulated over
+an hour rather than watts would be out by a factor of 3600, and a scaling
+mistake by 10 or 1000. Twelve per cent is a calibration difference. Since
+`UVI = E_eff / 0.025 W/m²` is the WHO *definition*, ×40 is correct by
+construction once the units are W/m², and what has actually been measured is
+CAMS reading roughly 12% high against these instruments. The consistent positive
+bias in the accuracy table is the same finding seen from the other side.
+
+**So ×40 stays, and no bias correction is applied yet.** Four stations, one
+fortnight, one season is not a basis for one. Two weaknesses in the test itself
+argue for the same caution:
+
+- "Cloudless" is defined as all-sky within 5% of CAMS's *own* clear-sky, so if
+  the model runs high in clear conditions the filter cannot see it. It is
+  marking its own homework.
+- Darwin and Melbourne contributed only ~21 cloudless hours each.
+
+Before launch: re-run across all thirteen stations and at least two seasons,
+then decide whether a correction is justified. If one is applied it is a derived
+product, and the CAMS licence then requires the "Contains modified Copernicus
+Atmosphere Monitoring Service information" wording.
+
+### Station coordinates corrected
+
+Validation turned up a confound worth fixing on its own account. The registry
+used city-centre coordinates, while ARPANSA's instruments are elsewhere: Sydney's
+is 20 km south of the CBD, Melbourne's 14 km north-east. A CAMS cell is about
+44 km across, so a forecast could describe a different cell from the one being
+measured. Both the registry and the Python station table now use the
+instrument's own position, taken from the Lat/Lon columns of ARPANSA's
+historical CSVs.
+
 ## What is built
 
 - D1 schema, and the storage layer including the staleness rule.

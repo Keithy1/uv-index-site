@@ -76,29 +76,34 @@ export const COUNTRIES: readonly CountrySettings[] = [
 /**
  * ARPANSA's 13 mainland and Tasmanian stations.
  *
- * Coordinates are the *station's*, not the city centre's, so that a CAMS
- * forecast grid cell and an ARPANSA measurement describe the same place.
- * Hobart is the clearest case: the station is at Kingston, 11 km south.
+ * Coordinates are the INSTRUMENT's own position, read from the Lat/Lon columns
+ * of ARPANSA's historical CSVs on data.gov.au -- not the city centre. This
+ * matters because a CAMS grid cell is about 44 km across, so a station 20 km
+ * from the CBD can fall in a different cell, and a forecast would then describe
+ * somewhere other than the place being measured.
+ *
+ * The largest differences: Sydney's station is 20 km south of the CBD, at
+ * -34.04, and Melbourne's is 14 km north-east. Hobart's is at Kingston.
  */
 const AU_LOCATIONS: readonly Location[] = [
-  { id: "au-adl", country: "au", name: "Adelaide",      slug: "adelaide",      lat: -34.92, lon: 138.60, tz: "Australia/Adelaide",  arpansaCode: "adl", status: "live" },
-  { id: "au-ali", country: "au", name: "Alice Springs", slug: "alice-springs", lat: -23.70, lon: 133.88, tz: "Australia/Darwin",    arpansaCode: "ali", status: "live" },
-  { id: "au-bri", country: "au", name: "Brisbane",      slug: "brisbane",      lat: -27.47, lon: 153.03, tz: "Australia/Brisbane",  arpansaCode: "bri", status: "live" },
-  { id: "au-can", country: "au", name: "Canberra",      slug: "canberra",      lat: -35.28, lon: 149.13, tz: "Australia/Sydney",    arpansaCode: "can", status: "live" },
-  { id: "au-dar", country: "au", name: "Darwin",        slug: "darwin",        lat: -12.46, lon: 130.84, tz: "Australia/Darwin",    arpansaCode: "dar", status: "live" },
+  { id: "au-adl", country: "au", name: "Adelaide",      slug: "adelaide",      lat: -34.95, lon: 138.52, tz: "Australia/Adelaide",  arpansaCode: "adl", status: "live" },
+  { id: "au-ali", country: "au", name: "Alice Springs", slug: "alice-springs", lat: -23.8, lon: 133.89, tz: "Australia/Darwin",    arpansaCode: "ali", status: "live" },
+  { id: "au-bri", country: "au", name: "Brisbane",      slug: "brisbane",      lat: -27.45, lon: 153.03, tz: "Australia/Brisbane",  arpansaCode: "bri", status: "live" },
+  { id: "au-can", country: "au", name: "Canberra",      slug: "canberra",      lat: -35.31, lon: 149.2, tz: "Australia/Sydney",    arpansaCode: "can", status: "live" },
+  { id: "au-dar", country: "au", name: "Darwin",        slug: "darwin",        lat: -12.43, lon: 130.89, tz: "Australia/Darwin",    arpansaCode: "dar", status: "live" },
   { id: "au-emd", country: "au", name: "Emerald",       slug: "emerald",       lat: -23.53, lon: 148.16, tz: "Australia/Brisbane",  arpansaCode: "emd", status: "live" },
-  { id: "au-gco", country: "au", name: "Gold Coast",    slug: "gold-coast",    lat: -28.02, lon: 153.40, tz: "Australia/Brisbane",  arpansaCode: "gco", status: "live" },
+  { id: "au-gco", country: "au", name: "Gold Coast",    slug: "gold-coast",    lat: -28.0, lon: 153.37, tz: "Australia/Brisbane",  arpansaCode: "gco", status: "live" },
   {
     id: "au-kin", country: "au", name: "Hobart", slug: "hobart",
-    lat: -42.98, lon: 147.30, tz: "Australia/Hobart", arpansaCode: "kin",
+    lat: -42.99, lon: 147.29, tz: "Australia/Hobart", arpansaCode: "kin",
     stationNote: "Measured at ARPANSA's Kingston station, 11 km south of central Hobart.",
     status: "live",
   },
-  { id: "au-mel", country: "au", name: "Melbourne",  slug: "melbourne",  lat: -37.81, lon: 144.96, tz: "Australia/Melbourne", arpansaCode: "mel", status: "live" },
-  { id: "au-new", country: "au", name: "Newcastle",  slug: "newcastle",  lat: -32.93, lon: 151.78, tz: "Australia/Sydney",    arpansaCode: "new", status: "live" },
-  { id: "au-per", country: "au", name: "Perth",      slug: "perth",      lat: -31.95, lon: 115.86, tz: "Australia/Perth",     arpansaCode: "per", status: "live" },
-  { id: "au-syd", country: "au", name: "Sydney",     slug: "sydney",     lat: -33.87, lon: 151.21, tz: "Australia/Sydney",    arpansaCode: "syd", status: "live" },
-  { id: "au-tow", country: "au", name: "Townsville", slug: "townsville", lat: -19.26, lon: 146.82, tz: "Australia/Brisbane",  arpansaCode: "tow", status: "live" },
+  { id: "au-mel", country: "au", name: "Melbourne",  slug: "melbourne",  lat: -37.73, lon: 145.1, tz: "Australia/Melbourne", arpansaCode: "mel", status: "live" },
+  { id: "au-new", country: "au", name: "Newcastle",  slug: "newcastle",  lat: -32.9, lon: 151.72, tz: "Australia/Sydney",    arpansaCode: "new", status: "live" },
+  { id: "au-per", country: "au", name: "Perth",      slug: "perth",      lat: -31.93, lon: 115.98, tz: "Australia/Perth",     arpansaCode: "per", status: "live" },
+  { id: "au-syd", country: "au", name: "Sydney",     slug: "sydney",     lat: -34.04, lon: 151.1, tz: "Australia/Sydney",    arpansaCode: "syd", status: "live" },
+  { id: "au-tow", country: "au", name: "Townsville", slug: "townsville", lat: -19.33, lon: 146.76, tz: "Australia/Brisbane",  arpansaCode: "tow", status: "live" },
 ] as const;
 
 /**

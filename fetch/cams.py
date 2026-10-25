@@ -44,21 +44,26 @@ ADS_URL = "https://ads.atmosphere.copernicus.eu/api"
 DATASET = "cams-global-atmospheric-composition-forecasts"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; uvatlas-fetcher/1.0)"}
 
-# Launch locations needing a CAMS forecast: 13 AU cities (+ later: US as backup).
+# Launch locations needing a CAMS forecast: ARPANSA's 13 published stations.
+# Coordinates are the INSTRUMENT's own position, taken from the Lat/Lon columns
+# of ARPANSA's historical CSVs, not the city centre. Sydney's station is 20 km
+# south of the CBD and Melbourne's 14 km north-east; at a 0.4 degree grid that
+# can land in a different cell, and the whole point of validation is that the
+# forecast and the measurement describe the same place.
 AU_STATIONS: dict[str, tuple[float, float, str]] = {
-    "au-adl": (-34.93, 138.60, "Australia/Adelaide"),      # Adelaide
-    "au-ali": (-23.70, 133.88, "Australia/Darwin"),        # Alice Springs (NT time)
-    "au-bri": (-27.47, 153.03, "Australia/Brisbane"),      # Brisbane
-    "au-can": (-35.28, 149.13, "Australia/Sydney"),        # Canberra
-    "au-dar": (-12.46, 130.84, "Australia/Darwin"),        # Darwin
+    "au-adl": (-34.95, 138.52, "Australia/Adelaide"),      # Adelaide
+    "au-ali": (-23.8, 133.89, "Australia/Darwin"),        # Alice Springs (NT time)
+    "au-bri": (-27.45, 153.03, "Australia/Brisbane"),      # Brisbane
+    "au-can": (-35.31, 149.2, "Australia/Sydney"),        # Canberra
+    "au-dar": (-12.43, 130.89, "Australia/Darwin"),        # Darwin
     "au-emd": (-23.53, 148.16, "Australia/Brisbane"),      # Emerald (Qld time)
-    "au-gco": (-28.02, 153.40, "Australia/Brisbane"),      # Gold Coast
-    "au-kin": (-42.98, 147.30, "Australia/Hobart"),        # Hobart (Kingston stn)
-    "au-mel": (-37.81, 144.96, "Australia/Melbourne"),     # Melbourne
-    "au-new": (-32.93, 151.78, "Australia/Sydney"),        # Newcastle
-    "au-per": (-31.95, 115.86, "Australia/Perth"),         # Perth
-    "au-syd": (-33.87, 151.21, "Australia/Sydney"),        # Sydney
-    "au-tow": (-19.26, 146.82, "Australia/Brisbane"),      # Townsville (Qld)
+    "au-gco": (-28.0, 153.37, "Australia/Brisbane"),      # Gold Coast
+    "au-kin": (-42.99, 147.29, "Australia/Hobart"),        # Hobart (Kingston stn)
+    "au-mel": (-37.73, 145.1, "Australia/Melbourne"),     # Melbourne
+    "au-new": (-32.9, 151.72, "Australia/Sydney"),        # Newcastle
+    "au-per": (-31.93, 115.98, "Australia/Perth"),         # Perth
+    "au-syd": (-34.04, 151.1, "Australia/Sydney"),        # Sydney
+    "au-tow": (-19.33, 146.76, "Australia/Brisbane"),      # Townsville (Qld)
 }
 
 
