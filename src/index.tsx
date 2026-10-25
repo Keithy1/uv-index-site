@@ -11,6 +11,7 @@
 import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
+import { isProductionHost } from "./lib/host";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
@@ -32,7 +33,33 @@ import { Preview } from "./views/Preview";
 
 const app = new Hono<{ Bindings: Env }>();
 
-/** How late a source may be before /api/health calls it unhealthy. */
+/**
+ * Keep previews out of the search index.
+ *
+ * A workers.dev deployment is a public URL serving the same pages as
+ * production. Left crawlable it would be indexed as a duplicate of
+ * uvatlas.com, competing with the site it exists to rehearse — and the damage
+ * lands exactly where this project cannot afford it, since the whole plan is
+ * to rank a small number of pages.
+ *
+ * Belt and braces, because either alone has failed for people before: a header
+ * on every response, and a robots.txt that disallows everything.
+ */
+app.use("*", async (c, next) => {
+  await next();
+  if (!isProductionHost(new URL(c.req.url).host)) {
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  }
+});
+
+/**
+ * How late a source may be before /api/health calls it unhealthy.
+ *
+ * The keys are also the list of sources that are SUPPOSED to exist. That
+ * matters: health used to report on whatever rows it found, so a source that
+ * had never run once was not late, it was absent — and absent read as healthy.
+ * A silent ARPANSA, the one feed where minutes matter, would have looked fine.
+ */
 const HEALTH_LIMITS_MS: Record<string, number> = {
   arpansa: 30 * 60 * 1000,
   epa: 3 * 60 * 60 * 1000,
@@ -72,22 +99,28 @@ app.get("/api/health", async (c) => {
   const rows = await readHealth(c.env.DB);
   const now = Date.now();
 
-  const sources = rows.map((row) => {
-    const limit = HEALTH_LIMITS_MS[row.source] ?? Number.POSITIVE_INFINITY;
-    const ageMs = row.last_ok_at ? now - Date.parse(row.last_ok_at) : null;
-    return {
-      source: row.source,
-      lastOkAt: row.last_ok_at,
-      lastAttemptAt: row.last_attempt_at,
-      lastError: row.last_error,
-      recordsLastRun: row.records_last_run,
-      ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
-      healthy: ageMs !== null && ageMs <= limit,
-    };
-  });
+  const byName = new Map(rows.map((row) => [row.source, row]));
 
-  // No rows at all means the cron has never run: that is unhealthy, not silence.
-  const healthy = sources.length > 0 && sources.every((s) => s.healthy);
+  // Iterate the EXPECTED sources, not the rows that happen to exist, so a
+  // source that has never reported is reported as never having reported.
+  const sources = Object.keys(HEALTH_LIMITS_MS)
+    .sort()
+    .map((source) => {
+      const row = byName.get(source);
+      const limit = HEALTH_LIMITS_MS[source] ?? Number.POSITIVE_INFINITY;
+      const ageMs = row?.last_ok_at ? now - Date.parse(row.last_ok_at) : null;
+      return {
+        source,
+        lastOkAt: row?.last_ok_at ?? null,
+        lastAttemptAt: row?.last_attempt_at ?? null,
+        lastError: row?.last_error ?? (row ? null : "has never run"),
+        recordsLastRun: row?.records_last_run ?? 0,
+        ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
+        healthy: ageMs !== null && ageMs <= limit,
+      };
+    });
+
+  const healthy = sources.every((s) => s.healthy);
   c.header("Cache-Control", "no-store");
   return c.json({ healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources }, healthy ? 200 : 503);
 });
@@ -199,13 +232,19 @@ app.get("/:country/:slug/", async (c) => {
 });
 
 app.get("/robots.txt", (c) => {
-  const lines = [
-    "User-agent: *",
-    "Disallow: /api/",
-    "",
-    "Sitemap: https://uvatlas.com/sitemap.xml",
-    "",
-  ].join("\n");
+  // A preview host disallows everything; see the noindex middleware above.
+  const production = isProductionHost(new URL(c.req.url).host);
+  const lines = (
+    production
+      ? [
+          "User-agent: *",
+          "Disallow: /api/",
+          "",
+          "Sitemap: https://uvatlas.com/sitemap.xml",
+          "",
+        ]
+      : ["# Preview deployment, not for indexing.", "User-agent: *", "Disallow: /", ""]
+  ).join("\n");
   c.header("Content-Type", "text/plain; charset=utf-8");
   c.header("Cache-Control", "public, max-age=86400");
   return c.body(lines);
