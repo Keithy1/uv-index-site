@@ -9,12 +9,17 @@
 /**
  * Contact address for the About page and the privacy notice.
  *
- * Deliberately null rather than a plausible-looking placeholder: an address
- * nobody reads is worse than none, and AdSense reviewers check that contact
- * details work. The pages say it is coming rather than inventing one. Set this
- * before launch.
+ * Live since 25 October 2026: Cloudflare Email Routing forwards it to a
+ * verified inbox, and a test was confirmed delivered in the routing activity
+ * log. Kept non-null only while that is true — an address nobody reads is
+ * worse than none, and AdSense reviewers check that contact details work.
+ *
+ * Note for testing: mail sent FROM the destination inbox to this address
+ * forwards straight back to it, and Gmail dedupes a message it sent to
+ * itself. Use a different account, or read Cloudflare's activity log, rather
+ * than concluding the forward is broken.
  */
-export const CONTACT_EMAIL: string | null = null;
+export const CONTACT_EMAIL: string | null = "contact@uvatlas.com";
 
 /** Who is responsible for the site. Shown on About and in the terms. */
 export const PUBLISHER = "Keith Chester";

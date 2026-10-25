@@ -96,5 +96,14 @@ to deploy, at which point the Worker gets a route on the zone.
 ## 6. Decide, when it comes up
 
 - **Brand colour and wordmark.** I can propose options with the first templates.
-- **A contact email for the About page.** AdSense reviewers look for one, and the
-  uptime monitor needs somewhere to send alerts.
+- [x] **Contact email — DONE (25 October 2026).** `contact@uvatlas.com`, via
+  Cloudflare Email Routing to a verified inbox; a test showed `Forwarded` in
+  the routing activity log. Set in `src/lib/site.ts`.
+
+  Routing is receive-only: Cloudflare cannot send, so replies leave as the
+  destination address unless an SMTP relay is added later.
+
+  When testing, do not send from the destination inbox. The mail forwards
+  straight back to it and Gmail dedupes a message it sent to itself, which
+  looks exactly like a broken forward. Use another account, or read the
+  activity log.
