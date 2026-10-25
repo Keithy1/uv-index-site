@@ -158,6 +158,43 @@ def _is_missing(value: float) -> bool:
     )
 
 
+def flatten_series(valid_time, issued_time, values) -> list[tuple]:
+    """Pair every forecast value with its valid instant and its issuing run.
+
+    The file's shape depends on how many dates were requested, which is a trap:
+
+      * one date   -> `time` is a scalar, data is (step, ...), valid_time is (step,)
+      * many dates -> `time` is (time,),  data is (time, step, ...), valid_time
+                      is (time, step)
+
+    The probe only ever asked for one date, so the second shape was not
+    discovered until a 14-day validation run failed on it. Handling both here,
+    rather than at the call site, keeps that distinction in one place.
+
+    Returns (valid_at, issued_at, value) triples in file order.
+    """
+    import numpy as np
+
+    valid = np.asarray(valid_time)
+    data = np.asarray(values)
+    issued = np.asarray(issued_time)
+
+    if issued.ndim == 0:
+        issued_b = np.broadcast_to(issued, valid.shape)
+    else:
+        # `time` varies along the leading axis of valid_time; give it the same
+        # rank so numpy can broadcast it across the step axis.
+        shape = (issued.shape[0],) + (1,) * (valid.ndim - 1)
+        issued_b = np.broadcast_to(issued.reshape(shape), valid.shape)
+
+    if data.shape[: valid.ndim] != valid.shape:
+        raise ValueError(
+            f"data shape {data.shape} does not start with valid_time shape {valid.shape}"
+        )
+
+    return list(zip(valid.ravel(), issued_b.ravel(), data.reshape(valid.size)))
+
+
 def parse_grib(
     path: str,
     stations: dict[str, tuple[float, float, str]] | None = None,
@@ -171,12 +208,15 @@ def parse_grib(
 
     `valid_time` is used rather than `time + step` because cfgrib has already
     computed it, and it is unambiguously UTC.
+
+    Where two model runs both cover the same hour, the later run wins: a newer
+    forecast of the same instant is strictly better information.
     """
     import xarray as xr
 
     stations = stations if stations is not None else AU_STATIONS
     fetched = fetched_at or utc_now()
-    records: list[Record] = []
+    best: dict[tuple[str, datetime], Record] = {}
 
     ds = xr.open_dataset(path, engine="cfgrib")
     try:
@@ -185,45 +225,59 @@ def parse_grib(
                 f"{path} has no {ALL_SKY} variable; found {list(ds.data_vars)}"
             )
 
-        issued_at = _to_utc(ds["time"].values)
-        valid_times = [_to_utc(v) for v in ds["valid_time"].values]
-
         for key, (lat, lon, _tz) in stations.items():
             point = ds.sel(latitude=lat, longitude=lon, method="nearest")
-            all_sky = [float(v) for v in point[ALL_SKY].values.ravel()]
-            clear = (
-                [float(v) for v in point[CLEAR_SKY].values.ravel()]
-                if CLEAR_SKY in ds.data_vars
-                else [float("nan")] * len(all_sky)
-            )
 
-            for valid_at, rate, rate_cs in zip(valid_times, all_sky, clear):
+            all_sky = flatten_series(
+                point["valid_time"].values, point["time"].values, point[ALL_SKY].values
+            )
+            if CLEAR_SKY in ds.data_vars:
+                clear_vals = [
+                    v for _va, _is, v in flatten_series(
+                        point["valid_time"].values,
+                        point["time"].values,
+                        point[CLEAR_SKY].values,
+                    )
+                ]
+            else:
+                clear_vals = [float("nan")] * len(all_sky)
+
+            for (valid_raw, issued_raw, rate), rate_cs in zip(all_sky, clear_vals):
+                rate = float(rate)
                 if _is_missing(rate):
                     continue
                 uvi = uvi_from_uvbed(rate)
                 if not check_uvi(uvi):
                     continue
+
                 extra = None
+                rate_cs = float(rate_cs)
                 if not _is_missing(rate_cs):
                     clear_uvi = uvi_from_uvbed(rate_cs)
                     if check_uvi(clear_uvi):
                         extra = {"clear_sky_uvi": round(clear_uvi, 2)}
-                records.append(
-                    Record(
-                        source="cams",
-                        kind="forecast",
-                        location=key,
-                        uvi=round(uvi, 2),
-                        valid_at=valid_at,
-                        issued_at=issued_at,
-                        fetched_at=fetched,
-                        extra=extra,
-                    )
+
+                valid_at = _to_utc(valid_raw)
+                issued_at = _to_utc(issued_raw)
+                slot = (key, valid_at)
+                previous = best.get(slot)
+                if previous is not None and previous.issued_at is not None:
+                    if previous.issued_at >= issued_at:
+                        continue
+                best[slot] = Record(
+                    source="cams",
+                    kind="forecast",
+                    location=key,
+                    uvi=round(uvi, 2),
+                    valid_at=valid_at,
+                    issued_at=issued_at,
+                    fetched_at=fetched,
+                    extra=extra,
                 )
     finally:
         ds.close()
 
-    return records
+    return [best[k] for k in sorted(best, key=lambda k: (k[0], k[1]))]
 
 
 def _to_utc(value) -> datetime:
