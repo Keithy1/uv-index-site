@@ -147,3 +147,78 @@ export async function pruneReadings(db: D1Database, keepDays = 400, now: Date = 
   const cutoff = toIsoUtc(new Date(now.getTime() - keepDays * 86_400_000));
   await db.prepare(`DELETE FROM readings WHERE valid_at < ?1`).bind(cutoff).run();
 }
+
+export interface SeriesPoint {
+  readonly validAt: string;
+  readonly uvi: number;
+  readonly source: string;
+}
+
+export interface CityData {
+  /** Most recent measured reading, whatever its age. */
+  readonly latest: LatestReading | null;
+  /** Measured readings so far today, in the city's own day. */
+  readonly measuredToday: readonly SeriesPoint[];
+  /** Hourly forecast for today. Empty until CAMS is wired into D1. */
+  readonly forecastToday: readonly SeriesPoint[];
+  /** Hourly forecast for tomorrow. */
+  readonly forecastTomorrow: readonly SeriesPoint[];
+  /** Clear-sky forecast for today, used for the protection window. */
+  readonly clearSkyToday: readonly SeriesPoint[];
+}
+
+/**
+ * Everything one city page needs, in as few queries as the shape allows.
+ *
+ * The UTC window is deliberately wide (the local day plus a margin either
+ * side): a local day is never a UTC day, and Perth and Sydney sit three hours
+ * apart. Filtering to the exact local day happens at render time, where the
+ * IANA zone is already in hand.
+ */
+export async function cityData(
+  db: D1Database,
+  locationId: string,
+  fromUtc: string,
+  toUtc: string,
+  now: Date = new Date(),
+): Promise<CityData> {
+  const { results } = await db
+    .prepare(
+      `SELECT source, kind, valid_at, uvi
+       FROM readings
+       WHERE location_id = ?1 AND valid_at >= ?2 AND valid_at <= ?3
+       ORDER BY valid_at`,
+    )
+    .bind(locationId, fromUtc, toUtc)
+    .all<{ source: string; kind: string; valid_at: string; uvi: number }>();
+
+  const measured: SeriesPoint[] = [];
+  const forecast: SeriesPoint[] = [];
+  const clearSky: SeriesPoint[] = [];
+  for (const row of results) {
+    const point = { validAt: row.valid_at, uvi: row.uvi, source: row.source };
+    if (row.kind === "measured") measured.push(point);
+    else if (row.kind === "forecast_clear") clearSky.push(point);
+    else forecast.push(point);
+  }
+
+  const cutoff = now.getTime() - STALE_AFTER_MS;
+  const last = measured[measured.length - 1];
+  const latest: LatestReading | null = last
+    ? {
+        locationId,
+        uvi: last.uvi,
+        validAt: last.validAt,
+        source: last.source,
+        stale: Date.parse(last.validAt) < cutoff,
+      }
+    : null;
+
+  return {
+    latest,
+    measuredToday: measured,
+    forecastToday: forecast,
+    forecastTomorrow: [],
+    clearSkyToday: clearSky,
+  };
+}

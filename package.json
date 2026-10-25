@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "db:init:local": "wrangler d1 execute uvatlas --local --file=./schema.sql",
-    "db:init:remote": "wrangler d1 execute uvatlas --remote --file=./schema.sql"
+    "db:init:remote": "wrangler d1 execute uvatlas --remote --file=./schema.sql",
+    "db:seed:local": "wrangler d1 execute uvatlas --local --file=./dev-seed.sql"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",

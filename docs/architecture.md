@@ -211,6 +211,23 @@ historical CSVs.
   page that proves ARPANSA → cron → D1 → rendered HTML end to end.
 - CI: typecheck, both test suites, and a workerd bundle check.
 
+## Known gap: the forecast does not cover the whole local day
+
+A CAMS 00Z run with 24 lead hours covers 00:00-23:00 UTC, which in Sydney is
+11 am to 10 am the next day. So the morning hours before 11 am come from the
+*previous* day's run, and a request of lead 0-23 alone leaves a city page with
+no forecast for its own morning.
+
+This surfaced immediately on the city page: the sun-protection window read
+"from 11:00 am" when Sydney's real crossing is around 8:30 am -- two hours
+late, in the one direction this site must never err. `protectionWindow` now
+refuses to answer unless both crossings are actually observed in the series,
+and the page omits the section rather than printing a boundary as a fact.
+
+The fix for the data itself is to request lead 0-47 (or to combine the two
+daily runs) and keep the hours that fall inside each city's local day. That
+belongs with the D1 writer, which is not built yet.
+
 ## What is not built
 
 - **Writing EPA and CAMS records into D1.** The Python fetchers produce the

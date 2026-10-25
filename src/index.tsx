@@ -10,10 +10,15 @@
  */
 import { Hono } from "hono";
 
-import { COUNTRIES, liveCountries } from "./lib/locations";
+import { buildCurve } from "./lib/chart";
+import type { CurvePoint } from "./lib/chart";
+import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
+import type { CountryCode } from "./lib/locations";
 import type { Env } from "./lib/store";
-import { commitResult, latestMeasured, readHealth, STALE_AFTER_MS } from "./lib/store";
+import { cityData, commitResult, latestMeasured, readHealth, STALE_AFTER_MS } from "./lib/store";
+import { localDateKey, localMinutes } from "./lib/time";
 import * as arpansa from "./sources/arpansa";
+import { CityPage } from "./views/CityPage";
 import { Preview } from "./views/Preview";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -76,6 +81,59 @@ app.get("/api/health", async (c) => {
   const healthy = sources.length > 0 && sources.every((s) => s.healthy);
   c.header("Cache-Control", "no-store");
   return c.json({ healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources }, healthy ? 200 : 503);
+});
+
+/**
+ * A city page, e.g. /au/perth/.
+ *
+ * The D1 window is UTC and deliberately wide; the local day is cut out here,
+ * where the location's IANA zone is in hand. A local day is never a UTC day.
+ */
+app.get("/:country/:slug/", async (c) => {
+  const country = c.req.param("country") as CountryCode;
+  const settings = countrySettings(country);
+  if (!settings || settings.status !== "live") return c.notFound();
+
+  const slug = c.req.param("slug");
+  const location = locationsIn(country).find((l) => l.slug === slug && l.status === "live");
+  if (!location) return c.notFound();
+
+  const now = new Date();
+  const from = new Date(now.getTime() - 36 * 3600_000).toISOString().slice(0, 19) + "Z";
+  const to = new Date(now.getTime() + 48 * 3600_000).toISOString().slice(0, 19) + "Z";
+  const data = await cityData(c.env.DB, location.id, from, to, now);
+
+  const today = localDateKey(now.toISOString(), location.tz);
+  const onDay = (iso: string) => localDateKey(iso, location.tz) === today;
+  const toPoint = (p: { validAt: string; uvi: number }): CurvePoint => ({
+    minutes: localMinutes(p.validAt, location.tz),
+    uvi: p.uvi,
+  });
+
+  const curve = data.forecastToday.filter((p) => onDay(p.validAt)).map(toPoint);
+  const measuredPoints = data.measuredToday.filter((p) => onDay(p.validAt)).map(toPoint);
+  const latestPoint =
+    data.latest && onDay(data.latest.validAt) && !data.latest.stale
+      ? { minutes: localMinutes(data.latest.validAt, location.tz), uvi: data.latest.uvi }
+      : null;
+
+  // With no forecast yet, the measured readings so far today are still a real
+  // curve and worth drawing. Labelled by describeCurve either way.
+  const series = curve.length >= 3 ? curve : measuredPoints;
+
+  c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
+  return c.html(
+    <CityPage
+      location={location}
+      now={now}
+      reading={data.latest}
+      curve={series}
+      clearSky={data.clearSkyToday.map(toPoint)}
+      geometry={buildCurve(series, latestPoint)}
+      tomorrow={null}
+      hasForecast={curve.length > 0}
+    />,
+  );
 });
 
 app.get("/robots.txt", (c) => {

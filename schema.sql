@@ -18,7 +18,12 @@
 CREATE TABLE IF NOT EXISTS readings (
   location_id  TEXT NOT NULL,
   source       TEXT NOT NULL,              -- "arpansa" | "epa" | "cams"
-  kind         TEXT NOT NULL,              -- "measured" | "forecast"
+  kind         TEXT NOT NULL,              -- "measured" | "forecast" | "forecast_clear"
+                                           -- forecast_clear is the clear-sky twin: the
+                                           -- same instant with cloud removed. Kept as its
+                                           -- own series rather than a column because it is
+                                           -- a different forecast, and the sun-protection
+                                           -- window is deliberately computed from it.
   valid_at     TEXT NOT NULL,              -- ISO 8601 UTC, the instant described
   uvi          REAL NOT NULL,
   issued_at    TEXT,                       -- when the source issued it (forecasts)

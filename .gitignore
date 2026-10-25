@@ -25,3 +25,6 @@ data/
 *.docx
 
 .DS_Store
+
+# Development seed, regenerated from a real CAMS download; never committed.
+dev-seed.sql
