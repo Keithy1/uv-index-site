@@ -165,6 +165,13 @@ argue for the same caution:
   marking its own homework.
 - Darwin and Melbourne contributed only ~21 cloudless hours each.
 
+One hypothesis has been ruled out. Re-running Sydney with the corrected
+instrument coordinates (below) produced *identical* figures to four significant
+places — multiplier 35.3, bias +0.48, MAE 0.88 — so the station and the city
+centre fall in the same 0.4 degree cell, and the bias is genuine model
+behaviour rather than an artefact of pointing at the wrong place. The
+coordinate fix is still right on principle; it simply does not explain this.
+
 Before launch: re-run across all thirteen stations and at least two seasons,
 then decide whether a correction is justified. If one is applied it is a derived
 product, and the CAMS licence then requires the "Contains modified Copernicus
