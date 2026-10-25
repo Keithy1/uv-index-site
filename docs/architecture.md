@@ -130,39 +130,65 @@ convective cloud the model cannot place, not a UV failure.
 
 These are the figures the methods page should quote.
 
-### The model reads about 13% high, consistently
+### The model reads about 7% high — and no correction should be applied
 
 Fitting measured UVI against the raw dose rate on cloudless hours, against the
-40 that `UVI = rate / 0.025 W/m²` assumes:
+40 that `UVI = rate / 0.025 W/m²` assumes. Everything turns on how "cloudless"
+is decided, so it is now decided two ways:
 
-| | Implied multiplier |
-|---|---|
-| January | 36.0 |
-| October | 34.3 |
-| **Pooled** | **35.3** (−11.8% vs 40) |
+| Cloudless judged by | Hours | Pooled multiplier | Implied CAMS bias |
+|---|---|---|---|
+| CAMS's own clear-sky field | 1,256 | 35.3 | +13% |
+| **The measured curve's smoothness** | 795 | **37.3** | **+7%** |
 
-24 of 26 station-seasons produced a usable fit (Darwin in January and Kingston
-in October had too few cloudless hours). Range 32.6–39.6, standard deviation
-1.9. Seasonal spread 1.7.
+The second is the trustworthy one. The first lets the model judge its own
+cloud, and it turns out that mattered: the independent filter is stricter
+(795 hours rather than 1,256) and moves the answer *up* at essentially every
+station, by about 2.0 consistently.
 
-The offset is stable: 1.7 between seasons and sd 1.9 between stations, against a
-consistent ~4.7 distance from 40. **Every one of the 24 fits is below 40.**
+**So roughly half of the apparent 13% bias was an artefact of the filter**, not
+a property of the model. CAMS's clear-sky field was admitting hours that were
+not actually clear, and those contaminated hours dragged the fit down.
 
-This is not a unit error — a unit error is never 13%; accumulated joules rather
-than watts would be out by 3600. Since `UVI = E_eff / 0.025 W/m²` is the WHO
-*definition*, ×40 is right by construction once the units are W/m², and what has
-been measured is CAMS reading about 13% high against these instruments.
+Per-station, under the honest filter:
 
-Caveat that still stands: "cloudless" is defined as all-sky within 5% of CAMS's
-*own* clear-sky, so the filter cannot detect a model that runs high in clear
-conditions. It marks its own homework.
+| | CAMS filter | Measured filter |
+|---|---|---|
+| Mean | 35.6 | **38.3** |
+| Range | 32.6–39.6 | **33.1–44.5** |
+| Standard deviation | 1.9 | **2.8** |
+| Stations at or above 40 | 0 of 24 | **7 of 23** |
 
-**Open decision:** whether to apply a global correction (×35.3 instead of ×40,
-i.e. 0.88) or keep ×40 and publish the bias. Reading high is the *safe*
-direction for a sun-protection site, but it costs credibility against the Bureau
-and SunSmart. If a correction is applied it becomes a derived product and the
-CAMS licence requires the "Contains modified Copernicus Atmosphere Monitoring
-Service information" wording.
+This is the decisive change. Under the CAMS filter every station sat below 40
+with a tight spread, which is what made a single correction factor look
+defensible. Under honest cloud detection the spread nearly doubles and seven
+stations land *at or above* 40 — so a global ×0.88 would have made those seven
+worse, not better.
+
+**Conclusion: keep ×40, apply no correction.** It is the WHO definition, the
+residual ~7% is within the station-to-station scatter, and the earlier plan to
+divide it out rested on a filter that was quietly marking its own homework.
+Publish the measured accuracy instead.
+
+### How cloudless hours are detected
+
+Over an hour a cloudless UV curve is nearly a straight line — an hour is a
+small slice of a slow bell — while cloud puts dips and spikes through it. So
+`arpansa_history.hourly_clearness` fits a least-squares line through the minute
+readings around each hour and reports mean absolute deviation relative to the
+level. Scale-free, so it behaves the same at UVI 3 and UVI 14, and it involves
+no model at all.
+
+Calibrated on Sydney 2025 (2,655 scored hours): the distribution has a knee at
+0.01, where p25 is 0.0093 and p50 jumps to 0.055. That threshold selects 26% of
+daylight hours. Checked against days whose cloud was already known:
+
+| Day | Measured peak | Clearness |
+|---|---|---|
+| 19 Oct, clear | 8.5 | 0.023 |
+| 24 Oct | 8.4 | 0.061 |
+| 20 Oct, cloudy | 6.2 | 0.068 |
+| 26 Oct, heavy cloud | 1.9 | 0.145 |
 
 ### Station coordinates corrected
 
