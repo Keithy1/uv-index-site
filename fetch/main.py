@@ -1,72 +1,61 @@
-"""CLI: run the adapters and write JSONL history + a latest snapshot.
+"""CLI: run the adapters and write SQL for D1.
 
 These are the sources that cannot run inside a Cloudflare Worker on the free
-plan: EPA needs 100 subrequests (the limit is 50) and CAMS needs netCDF
+plan: EPA needs ~100 subrequests (the limit is 50) and CAMS needs GRIB
 processing. ARPANSA is fetched by the Worker's own cron instead, so it is
 deliberately absent here -- see src/sources/arpansa.ts.
 
-Usage:
-    python -m fetch.main --source epa --out data
-    python -m fetch.main --source all --out data
+Output is .sql files applied with `wrangler d1 execute`, the same path the
+schema uses. A source that fails is reported and skipped: its last good data
+stays in the database and `source_health` records the failure, so a broken feed
+makes the site stale rather than empty.
+
+    python -m fetch.main --source epa --out sql
+    python -m fetch.main --source all --out sql
 """
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
 from datetime import datetime, timezone
 
-from . import cams, epa
+from . import cams, d1, epa
 
 SOURCES = {"epa": epa.run, "cams": cams.run}
-
-
-def write_records(out_dir: str, source: str, records: list) -> int:
-    if not records:
-        return 0
-    os.makedirs(out_dir, exist_ok=True)
-    history = os.path.join(out_dir, f"{source}.jsonl")
-    with open(history, "a", encoding="utf-8") as f:
-        for r in records:
-            f.write(json.dumps(r.to_json()) + "\n")
-    return len(records)
-
-
-def write_latest(out_dir: str, by_source: dict[str, list]) -> None:
-    os.makedirs(out_dir, exist_ok=True)  # may not exist yet if every source failed
-    snapshot = {
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "sources": {
-            name: [r.to_json() for r in records]
-            for name, records in by_source.items()
-        },
-    }
-    with open(os.path.join(out_dir, "latest.json"), "w", encoding="utf-8") as f:
-        json.dump(snapshot, f)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="uvatlas data fetchers")
     parser.add_argument("--source", choices=sorted(SOURCES) + ["all"], default="all")
-    parser.add_argument("--out", default="data")
+    parser.add_argument("--out", default="sql")
     args = parser.parse_args(argv)
 
-    sources = sorted(SOURCES) if args.source == "all" else [args.source]
-    by_source: dict[str, list] = {}
-    for name in sources:
+    names = sorted(SOURCES) if args.source == "all" else [args.source]
+    now = datetime.now(timezone.utc)
+    failures = 0
+
+    for name in names:
+        statements: list[str] = []
         try:
             records = SOURCES[name]()
-        except Exception as exc:  # keep last good data; report and continue
-            print(f"[{name}] FAILED: {exc}", file=sys.stderr)
-            continue
-        n = write_records(args.out, name, records)
-        by_source[name] = records
-        print(f"[{name}] {n} records -> {args.out}/{name}.jsonl")
+        except Exception as exc:  # noqa: BLE001 - one bad source must not stop the rest
+            print(f"[{name}] FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+            # Still record the failure, so /api/health can report it rather
+            # than the page quietly serving yesterday's forecast as today's.
+            statements.append(d1.health_statement(name, False, 0, str(exc)[:400], now))
+            failures += 1
+        else:
+            statements = d1.statements(records)
+            statements.append(d1.health_statement(name, bool(records), len(records), None, now))
+            print(f"[{name}] {len(records)} records -> {len(statements)} statements")
 
-    write_latest(args.out, by_source)
-    print(f"latest.json written to {args.out}")
-    return 0
+        paths = d1.write_sql(statements, args.out, name)
+        for path in paths:
+            print(f"[{name}] wrote {path}")
+
+    # A failure is reported in the exit code so the workflow goes red, but the
+    # SQL that did succeed has already been written and should still be applied.
+    return 1 if failures == len(names) else 0
 
 
 if __name__ == "__main__":

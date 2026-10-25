@@ -33,8 +33,24 @@ class EpaTests(unittest.TestCase):
         recs = parse_daily(rows, "us-raleigh-nc", "America/New_York")
         self.assertEqual(len(recs), 1)
         self.assertEqual(recs[0].uvi, 5.0)
-        self.assertEqual(recs[0].extra, {"alert": "0"})
+        # A distinct kind: this is the day's peak, not the value at local noon.
+        # As "forecast" it collided with the hourly row at the same instant and
+        # one silently overwrote the other.
+        self.assertEqual(recs[0].kind, "forecast_daily")
+        self.assertEqual(recs[0].extra, {"alert": "0", "local_date": "2026-10-23"})
         self.assertEqual(recs[0].valid_at, datetime(2026, 10, 23, 16, 0, tzinfo=timezone.utc))
+
+    def test_daily_and_hourly_do_not_share_a_primary_key(self):
+        # The collision that lost rows: same location, source and valid_at.
+        hourly = parse_hourly(
+            [{"DATE_TIME": "Oct/23/2026 12 PM", "UV_VALUE": 4}], "us-raleigh-nc", "America/New_York"
+        )
+        daily = parse_daily(
+            [{"UV_INDEX": "5", "UV_ALERT": "0", "DATE": "Oct/23/2026"}],
+            "us-raleigh-nc", "America/New_York",
+        )
+        self.assertEqual(hourly[0].valid_at, daily[0].valid_at)
+        self.assertNotEqual(hourly[0].kind, daily[0].kind)
 
     def test_bad_rows_skipped(self):
         self.assertEqual(parse_hourly([{"DATE_TIME": "garbage", "UV_VALUE": 3}],

@@ -121,10 +121,17 @@ def parse_daily(rows: list[dict], key: str, tz_name: str, fetched_at: datetime |
             continue
         if not check_uvi(uvi):
             continue
+        # A distinct kind, because this is the day's PEAK, not the value at
+        # local noon. Left as "forecast" it collided with the hourly row at the
+        # same instant -- same location, source, kind and valid_at -- and one
+        # silently overwrote the other. It belongs in the `daily` table.
         records.append(
-            Record(source="epa", kind="forecast", location=key, uvi=uvi,
+            Record(source="epa", kind="forecast_daily", location=key, uvi=uvi,
                    valid_at=day.astimezone(timezone.utc), fetched_at=fetched_at,
-                   extra={"alert": str(row.get("UV_ALERT", "0"))})
+                   extra={
+                       "alert": str(row.get("UV_ALERT", "0")),
+                       "local_date": day.date().isoformat(),
+                   })
         )
     return records
 

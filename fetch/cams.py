@@ -36,7 +36,7 @@ because they are the parts that can be checked without a key.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .common import Record, check_uvi, utc_now
 
@@ -293,17 +293,28 @@ def _to_utc(value) -> datetime:
     return datetime.fromtimestamp(int(stamp), tz=timezone.utc)
 
 
-def run() -> list[Record]:
-    """Not usable yet: nothing reads the downloaded file into records.
+def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Record]:
+    """Fetch the forecast covering today and tomorrow, everywhere we publish.
 
-    The payload is correct (read off the ADS form) and `retrieve()` now submits
-    the job through cdsapi, but turning the result into Records needs facts the
-    probe has not yet established: whether GRIB or netCDF comes back, the
-    variable names inside it, and whether the x40 conversion gives believable
-    numbers. Run the cams-probe workflow first, then build this on what it
-    reports rather than on what we expect. See docs/architecture.md.
+    Two model runs are requested, yesterday's 00Z and today's, each with 47
+    lead hours. That is deliberate and not belt-and-braces:
+
+    A single 00Z run with 24 lead hours covers 00:00-23:00 UTC, which in Perth
+    is 08:00 to 07:00 the next morning -- so a city page would have no forecast
+    for its own early morning, and the sun-protection window would start hours
+    late. Yesterday's run reaches back far enough to cover that, and where the
+    two overlap `parse_grib` keeps the later one, which is the better forecast.
+
+    Roughly 5 MB per fetch, twice a day, in GitHub Actions. The Worker never
+    touches this: it has 10 ms of CPU and no GRIB reader.
     """
-    raise RuntimeError(
-        "CAMS fetch is not built yet: run the cams-probe workflow to establish "
-        "the file format and variable names first. See docs/architecture.md."
-    )
+    stations = stations if stations is not None else AU_STATIONS
+    today = datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
+
+    payload = request_payload(str(today), "00:00", area_for(list(stations)), lead_hours=47)
+    payload["request"]["date"] = [f"{yesterday}/{today}"]
+
+    target = "cams.grib"
+    retrieve(payload["request"], target)
+    return parse_grib(target, stations)

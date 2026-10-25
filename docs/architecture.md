@@ -228,12 +228,37 @@ The fix for the data itself is to request lead 0-47 (or to combine the two
 daily runs) and keep the hours that fall inside each city's local day. That
 belongs with the D1 writer, which is not built yet.
 
+## Two things the EPA feed actually does
+
+Found when the writer first ran against the live service.
+
+**It returns today only.** A request made at 11:00 UTC came back with hourly
+values from 11:00 to 23:00 UTC and exactly one daily row — today's. The design
+document assumed EPA supplied today *and* tomorrow, and `/us/tomorrow/` was to
+be built on it. It cannot be. Tomorrow's US forecast has to come from CAMS,
+which the country settings already list as the US fallback.
+
+**Its daily row collides with its hourly series.** The daily forecast is the
+day's *peak*, but it is stamped at local noon, so as kind "forecast" it shared
+a primary key with the hourly value at the same instant and one silently
+overwrote the other — 25 records became 23 rows. Nobody would have noticed
+until a peak looked wrong on a page.
+
+Daily rows now go to the `daily` table, which the schema already had for this,
+and carry the UV alert flag with them. A test asserts that an hourly row and a
+daily row at the same instant both survive.
+
 ## What is not built
 
-- **Writing EPA and CAMS records into D1.** The Python fetchers produce the
-  records but nothing yet carries them into the database (it needs the D1 HTTP
-  API and a Cloudflare token). Until that lands, `fetch-epa-cams.yml` is
-  manual-only and uploads an artifact instead.
+- **A D1 database to write to.** The writer is built: `fetch/d1.py` turns
+  records into idempotent upserts and `fetch-epa-cams.yml` applies them with
+  `wrangler d1 execute --remote`, the same path the schema uses. It has been
+  verified end to end against a local D1 with live EPA data.
+
+  What is missing is the database itself — `wrangler d1 create uvatlas` has not
+  been run, so `wrangler.jsonc` still carries a placeholder id and no
+  `CLOUDFLARE_API_TOKEN` is set. The workflow skips its write step without
+  them rather than failing obscurely. See `setup.md`.
 - **CAMS transport and its UV-index derivation.** The *payload* is now correct:
   on 25 October 2026 the ADS download form's own "Corresponding API request"
   panel was read directly, and it contradicted our implementation in three ways,

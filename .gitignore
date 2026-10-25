@@ -28,3 +28,7 @@ data/
 
 # Development seed, regenerated from a real CAMS download; never committed.
 dev-seed.sql
+
+# Generated SQL from the fetchers; applied, never committed.
+sql/
+*.grib

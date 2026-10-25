@@ -2,21 +2,22 @@ name: fetch-epa-cams
 
 # The two sources that cannot run inside a Cloudflare Worker on the free plan:
 #   * EPA needs ~100 subrequests per run and the free limit is 50;
-#   * CAMS ships GRIB/netCDF that needs real numerical processing.
-# Both are forecasts, so a late run costs nothing. ARPANSA — the one source
-# where minutes matter — is fetched by the Worker's own cron instead, because
-# GitHub's scheduler is best-effort and routinely runs 10-30 minutes late.
+#   * CAMS ships GRIB that needs real numerical processing.
+# Both are forecasts, so a late run costs nothing a visitor would see. ARPANSA
+# -- the one source where minutes matter -- is fetched by the Worker's own
+# cron, because GitHub's scheduler is best-effort and this repository measured
+# it delivering 2.7% of a */5 schedule.
 #
-# DISABLED ON A SCHEDULE FOR NOW: the step that writes these records into D1 is
-# not built yet (see docs/architecture.md, "What is not built"). Running on a
-# timer before then would just burn minutes, so it is manual-only until the
-# writer lands, at which point the `schedule` block below is uncommented.
+# The fetchers write .sql and wrangler applies it, which is the same path the
+# schema uses: one way into the database, one set of credentials.
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "23 * * * *"   # EPA, hourly, off the top of the hour (less queueing)
-  #   - cron: "40 1,13 * * *" # CAMS, after the 00Z and 12Z runs publish
+  schedule:
+    # EPA publishes hourly; off the top of the hour, which is less contended.
+    - cron: "23 * * * *"
+    # After the 00Z and 12Z CAMS runs have published.
+    - cron: "40 7,19 * * *"
 
 permissions:
   contents: read
@@ -28,33 +29,67 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          npm ci
 
       - name: Tests
         run: python -m unittest discover -s fetch/tests -t . -v
 
-      - name: Fetch EPA (forecast, US)
-        run: python -m fetch.main --source epa --out data
+      # CAMS only runs on its own schedule: it is a ~5 MB download and the
+      # forecast changes twice a day, so fetching it hourly would be waste.
+      - name: Decide which sources to fetch
+        id: pick
+        run: |
+          if [ "${{ github.event.schedule }}" = "23 * * * *" ]; then
+            echo "source=epa" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=all" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Fetch CAMS (forecast)
-        if: env.ADS_API_KEY != ''
-        run: python -m fetch.main --source cams --out data
+      - name: Fetch
+        id: fetch
+        # Keep going on a source failure: the SQL that did succeed is still
+        # worth applying, and the health row records what went wrong.
+        continue-on-error: true
+        run: python -m fetch.main --source "${{ steps.pick.outputs.source }}" --out sql
 
-      - name: Health file
-        run: python fetch/health.py data
+      - name: Write to D1
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          shopt -s nullglob
+          files=(sql/*.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no SQL produced" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "applying $f"
+            npx wrangler d1 execute uvatlas --remote --file="$f" --yes
+          done
 
-      # Kept as an artifact so a run can be inspected before the D1 writer
-      # exists. Data is never committed to the repository.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: uv-data
-          path: data/
-          retention-days: 7
+      - name: Report
+        run: |
+          if [ "${{ steps.fetch.outcome }}" != "success" ]; then
+            echo "a source failed; see the Fetch step" >&2
+            exit 1
+          fi
