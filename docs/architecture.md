@@ -106,10 +106,28 @@ A fixture of that feed is kept at
   records but nothing yet carries them into the database (it needs the D1 HTTP
   API and a Cloudflare token). Until that lands, `fetch-epa-cams.yml` is
   manual-only and uploads an artifact instead.
-- **CAMS transport and its UV-index derivation.** `uvbed` is a dose rate in W/m²
-  and UVI = rate × 40, which is unit-tested, but the ADS request has never run
-  against the live API, and the derived index must be validated against ARPANSA
-  measurements in the same hour before it is published anywhere.
+- **CAMS transport and its UV-index derivation.** The *payload* is now correct:
+  on 25 October 2026 the ADS download form's own "Corresponding API request"
+  panel was read directly, and it contradicted our implementation in three ways,
+  each of which would have failed the request outright:
+
+  | We had | The API actually takes |
+  |---|---|
+  | `"variable": ["uvbed", "uvbedcs"]` | `"uv_biologically_effective_dose"`, `"uv_biologically_effective_dose_clear_sky"` |
+  | `"format": "netcdf"` | `"data_format": "grib"` — and the netCDF value is `"netcdf_zip"`, not `"netcdf"` |
+  | `"date": ["2026-10-25"]` | `"date": ["2026-10-25/2026-10-25"]` — a start/end range even for one day |
+
+  The short names `uvbed` (214002) and `uvbedcs` (214003) are the *GRIB parameter*
+  names and are not what the request API accepts. netCDF is also flagged
+  experimental on the form, so GRIB is the safer default and the Actions job will
+  need a GRIB reader.
+
+  Still open: **the transport**. The form generates `cdsapi` client code, not a
+  plain POST, because a retrieve is an asynchronous job that must be polled and
+  then downloaded. Our hand-rolled POST has never run, so `run()` still raises;
+  moving to the official `cdsapi` client is the likely fix. And the derived index
+  must be validated against ARPANSA measurements in the same hour before it is
+  published anywhere.
 - All launch page templates: city, country, tomorrow, the guide, the world map,
   sitemaps, structured data.
 - Monthly normals from ARPANSA's historical datasets.

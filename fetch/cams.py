@@ -1,16 +1,29 @@
 """CAMS global UV index forecast adapter (forecast feed for AU, backup for US).
 
 Dataset: cams-global-atmospheric-composition-forecasts (Atmosphere Data Store).
-Variables (per ECMWF forum + GRIB param DB):
-- uvbed   214002  UV biologically effective dose RATE, W/m2 (cloud-adjusted)
-- uvbedcs 214003  clear-sky twin, W/m2
-UV index = rate / 0.025 W/m2 = rate * 40 (WHO definition, instantaneous).
-Licence: free, commercial use OK; credit line in docs/site-notes.md.
 
-The ADS HTTP transport is implemented per the long-standing ADS/CDS retrieve API;
-it is validated against the live API at first deploy (needs Keith's ADS_API_KEY,
-format "UID:API_KEY"). Until then `run()` raises; unit tests cover the payload
-shape and the UVI conversion, which are the science-critical parts.
+Variable names and request keys below were read off the ADS download form's own
+"Corresponding API request" panel on 25 October 2026, which is the only
+authoritative source for them. Three things there differ from the GRIB parameter
+database, and each would have failed the request outright:
+
+  * the API takes "uv_biologically_effective_dose" and
+    "uv_biologically_effective_dose_clear_sky", not the short GRIB names
+    "uvbed" (214002) and "uvbedcs" (214003);
+  * the format key is "data_format", not "format";
+  * its netCDF value is "netcdf_zip", not "netcdf". netCDF is also marked
+    experimental on the form, so GRIB is the safer default.
+
+The physics is unchanged: both variables are dose RATES in W/m2, and
+UV index = rate / 0.025 W/m2 = rate * 40 (WHO definition, instantaneous).
+
+Licence: free, commercial use allowed; credit line in docs/licences.md.
+
+TRANSPORT IS STILL UNVERIFIED. The form generates `cdsapi` client code rather
+than a plain POST, because a retrieve is an asynchronous job that must be polled
+and then downloaded. The hand-rolled POST below has never run against the live
+API, so `run()` raises. The payload shape and the UVI conversion are unit-tested
+because they are the parts that can be checked without a key.
 """
 from __future__ import annotations
 
@@ -49,18 +62,29 @@ def uvi_from_uvbed(rate_w_m2: float) -> float:
     return rate_w_m2 * 40.0
 
 
+# The two UV variables, named as the ADS API expects them.
+VARIABLES = [
+    "uv_biologically_effective_dose",
+    "uv_biologically_effective_dose_clear_sky",
+]
+
+
 def request_payload(date: str, run_time: str, area: list[float], lead_hours: int = 120) -> dict:
-    """Standard ADS request for one 0.4-deg area subset, 1-hourly uvbed fields."""
+    """Standard ADS request for one area subset, 1-hourly UV dose-rate fields.
+
+    `date` is given as the "start/end" range the form emits even for a single
+    day ("2026-10-25/2026-10-25"); a bare date is not the documented shape.
+    """
     return {
         "dataset": DATASET,
         "request": {
             "type": ["forecast"],
-            "date": [date],                    # YYYY-MM-DD
+            "date": [f"{date}/{date}"],        # YYYY-MM-DD/YYYY-MM-DD
             "time": [run_time],                # "00:00" | "12:00"
             "leadtime_hour": [str(h) for h in range(lead_hours + 1)],
-            "variable": ["uvbed", "uvbedcs"],
+            "variable": list(VARIABLES),
             "area": area,                      # [N, W, S, E]
-            "format": "netcdf",
+            "data_format": "grib",
         },
     }
 
@@ -95,8 +119,14 @@ def fetch(payload: dict) -> bytes:
 
 
 def run() -> list[Record]:
-    """Phase 1: transport requires the live ADS key; raise until validated."""
+    """Not usable yet: the transport has never run against the live ADS API.
+
+    The payload is now correct (read off the ADS form), but a retrieve is an
+    asynchronous job and this module does not yet poll for it or download the
+    result. Switching to the official `cdsapi` client is the likely fix once a
+    key is available to test with. See docs/architecture.md.
+    """
     raise RuntimeError(
-        "CAMS fetch is not validated yet: it needs the live ADS_API_KEY, which is "
-        "only available at deploy time. See docs/site-notes.md."
+        "CAMS fetch is not validated yet: the payload is correct but the "
+        "asynchronous retrieve transport is unimplemented. See docs/architecture.md."
     )

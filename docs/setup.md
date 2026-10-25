@@ -2,17 +2,23 @@
 
 Everything here is free. Each item is blocking for the step named beside it.
 
-## 1. Copernicus ADS account — blocks the forecast feed
+## 1. Copernicus ADS — blocks the forecast feed
 
 The whole Australian forecast (tomorrow's peak, today's curve, sun-protection
-times) comes from CAMS, and it needs a free account.
+times) comes from CAMS.
 
-1. Register at <https://ads.atmosphere.copernicus.eu/>.
-2. Accept the licence for **CAMS global atmospheric composition forecasts**
-   (this is a separate click from registering, and requests fail without it).
-3. Copy the API key from your profile page. It looks like `12345:abcdef-...`.
-4. Give it to me, or set it yourself:
-   `gh secret set ADS_API_KEY --repo Keithy1/uv-index-site`
+- [x] **Account exists.** Checked 25 October 2026: signed in as Keith Edward
+      Chester on <https://ads.atmosphere.copernicus.eu/>.
+- [ ] **Accept the dataset licence.** On the
+      [CAMS global atmospheric composition forecasts download tab](https://ads.atmosphere.copernicus.eu/datasets/cams-global-atmospheric-composition-forecasts?tab=download),
+      under "Terms of use", the CC-BY licence still shows an **Accept terms**
+      button, so it has not been accepted. Requests fail until it is. This is a
+      licence agreement, so it needs your click or your explicit go-ahead.
+- [ ] **API key.** On <https://ads.atmosphere.copernicus.eu/profile>, format
+      `UID:API_KEY`. Set it yourself so the value never passes through the chat
+      or a log — this prompts for it and does not echo:
+
+      gh secret set ADS_API_KEY --repo Keithy1/uv-index-site
 
 ## 2. Cloudflare D1 database — blocks deployment
 
