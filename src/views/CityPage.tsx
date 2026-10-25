@@ -298,10 +298,7 @@ export function CityPage(view: CityView) {
               </li>
             ))}
             <li>
-              <a href={`/${loc.country}/`}>All cities</a>
-            </li>
-            <li>
-              <a href={`/${loc.country}/tomorrow/`}>Tomorrow</a>
+              <a href={`/${loc.country}/#tomorrow`}>All cities, today and tomorrow</a>
             </li>
           </ul>
         </>

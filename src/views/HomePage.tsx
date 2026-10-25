@@ -157,7 +157,7 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
 }
 
 export function HomePage(view: HomeView) {
-  const title = "UV Index Now: Live Readings for Australia and the United States";
+  const title = "UV Index Today and Tomorrow: Australia and the United States";
   const description =
     "Live UV index by city, measured and forecast. Pick a country to see current " +
     "readings, today's curve and sun protection times.";
@@ -177,10 +177,10 @@ export function HomePage(view: HomeView) {
     <Layout title={title} description={description} path="/" structuredData={structuredData}>
       <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
 
-      <h1>UV index now</h1>
+      <h1>UV index today and tomorrow</h1>
       <p class="intro">
         Live UV readings and forecasts, city by city. Choose a country to see what the
-        UV is right now, how it changes through the day, and when sun protection is
+        UV is right now, what it reaches tomorrow, and the hours sun protection is
         needed.
       </p>
 

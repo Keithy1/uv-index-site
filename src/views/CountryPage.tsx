@@ -21,6 +21,14 @@ export interface CityRow {
   readonly stale: boolean;
   /** Today's forecast peak, when a forecast is available. */
   readonly peak: number | null;
+  /**
+   * Tomorrow's forecast peak, or null when the forecast does not cover the
+   * city's whole tomorrow. Null rather than a truncated maximum: the page once
+   * reported Brisbane peaking at 6.1 at 9 am because 9 am was the last hour
+   * that existed.
+   */
+  readonly tomorrow: number | null;
+  readonly tomorrowMinutes: number | null;
 }
 
 /** The generated outline for one country, passed in rather than imported. */
@@ -121,14 +129,20 @@ export function CountryPage(view: CountryView) {
     : null;
   const band = highest ? bandFor(highest.uvi!) : null;
 
+  // One page carries both intents rather than splitting them across two thin
+  // ones: "uv index <country>" and "uv index tomorrow <country>". The title,
+  // the description and the table heading below all say "tomorrow" on purpose,
+  // and the heading doubles as the #tomorrow anchor.
   const title = view.measured
-    ? `UV Index ${country.name}: Live Readings for Every City`
-    : `UV Index ${country.name}: Today's Forecast for Every City`;
+    ? `UV Index ${country.name} Today and Tomorrow: Every City`
+    : `UV Index ${country.name} Today and Tomorrow: Forecast for Every City`;
   const description = view.measured
-    ? `Live UV index for ${country.name}, measured by ARPANSA and updated every ` +
-      "few minutes. Current reading, band and sun protection guidance for each station."
-    : `Today's UV index forecast for cities across ${country.name}, from the US ` +
-      "Environmental Protection Agency. Peak level, band and sun protection guidance.";
+    ? `Live UV index for ${country.name}, measured by ARPANSA and updated every few ` +
+      "minutes, with tomorrow's forecast peak for every city. Band and sun " +
+      "protection guidance for each station."
+    : `UV index forecast for cities across ${country.name} today and tomorrow, from ` +
+      "the US Environmental Protection Agency and Copernicus. Peak level, band and " +
+      "sun protection guidance.";
   const path = `/${country.code}/`;
 
   const structuredData = [
@@ -200,16 +214,11 @@ export function CountryPage(view: CountryView) {
 
       <CountryOutline rows={rows} map={view.map} countryName={country.name} />
 
-      {/* The tomorrow page had no inbound link at all when it was first
-          built: it existed, it worked, and nothing on the site pointed at
-          it. */}
-      <p class="small">
-        <a href={`/${country.code}/tomorrow/`}>
-          Tomorrow's forecast for every city →
-        </a>
-      </p>
-
-      <h2>Every station</h2>
+      <h2 id="tomorrow">
+        {view.measured
+          ? `UV index today and tomorrow in ${country.name}`
+          : `UV index today and tomorrow across ${country.name}`}
+      </h2>
       <table>
         <thead>
           <tr>
@@ -219,6 +228,8 @@ export function CountryPage(view: CountryView) {
             {view.measured && view.hasForecast && (
               <th scope="col" class="hide" style="text-align:right">Peak today</th>
             )}
+            <th scope="col" style="text-align:right">Tomorrow</th>
+            <th scope="col" class="hide">Tomorrow's band</th>
             {view.measured && <th scope="col" class="hide">Measured</th>}
           </tr>
         </thead>
@@ -248,6 +259,21 @@ export function CountryPage(view: CountryView) {
                 {view.measured && view.hasForecast && (
                   <td class="n hide">{r.peak !== null ? formatUvi(r.peak) : "—"}</td>
                 )}
+                <td class="n">{r.tomorrow !== null ? formatUvi(r.tomorrow) : "—"}</td>
+                <td class="hide">
+                  {r.tomorrow !== null ? (
+                    (() => {
+                      const tb = bandFor(r.tomorrow);
+                      return (
+                        <span class="band" style={`background:${tb.bg};color:${tb.fg}`}>
+                          {tb.name}
+                        </span>
+                      );
+                    })()
+                  ) : (
+                    <span class="muted small">no forecast</span>
+                  )}
+                </td>
                 {view.measured && (
                   <td class="t hide">
                     {r.validAt ? localTimeWithZone(r.validAt, r.location.tz) : "—"}
@@ -262,7 +288,9 @@ export function CountryPage(view: CountryView) {
       <p class="small muted">
         {view.measured
           ? "Sorted by the current reading, highest first. Times are local to each city."
-          : "Sorted by today's forecast peak, highest first. Forecasts are issued daily."}
+          : "Sorted by today's forecast peak, highest first."}{" "}
+        Tomorrow's figures are the forecast peak for each city's own day; a dash
+        means the forecast does not yet cover it.
       </p>
 
       <p class="small">

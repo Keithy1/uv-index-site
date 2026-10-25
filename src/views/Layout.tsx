@@ -125,17 +125,12 @@ export function Layout(props: Props) {
           <div class="wrap">
             <p>Not a substitute for medical advice.</p>
             <nav>
-              {/* Every served country, today and tomorrow, from every page:
-                  the design's rule is that the map is never the only way to
-                  reach anything. */}
+              {/* The served countries, so every page reaches the readings
+                  without the header menu. Today and tomorrow share one page
+                  each, so there is nothing else to list. */}
               {served.map((c) => (
                 <a key={c.code} href={`/${c.code}/`}>
                   {c.name}
-                </a>
-              ))}
-              {served.map((c) => (
-                <a key={`${c.code}-t`} href={`/${c.code}/tomorrow/`}>
-                  {c.name} tomorrow
                 </a>
               ))}
               <a href="/uv-index-explained/">UV index explained</a>
