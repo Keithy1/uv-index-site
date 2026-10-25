@@ -142,3 +142,34 @@ describe("buildCurve", () => {
     expect(g.measured!.y).toBeLessThan(g.height);
   });
 });
+
+describe("a truncated day must not be reported as a peak", () => {
+  /**
+   * The /au/tomorrow/ page once announced Brisbane peaking at 6.1 at 9 am,
+   * because 9 am was the last hour the forecast contained. The real peak was
+   * later and higher — wrong in the direction that matters. The route now
+   * requires the solar middle of the day to be present; these pin the shape of
+   * that judgement.
+   */
+  const covered = (points: CurvePoint[]) =>
+    points.some((p) => p.minutes <= 9 * 60) && points.some((p) => p.minutes >= 16 * 60);
+
+  it("rejects a day that stops in the morning", () => {
+    const partial = bell(11).filter((p) => p.minutes <= 9 * 60);
+    expect(covered(partial)).toBe(false);
+  });
+
+  it("rejects a day that starts in the afternoon", () => {
+    const partial = bell(11).filter((p) => p.minutes >= 13 * 60);
+    expect(covered(partial)).toBe(false);
+  });
+
+  it("accepts a full day", () => {
+    expect(covered(bell(11))).toBe(true);
+  });
+
+  it("also refuses a protection window for the truncated day", () => {
+    const partial = bell(11).filter((p) => p.minutes <= 9 * 60);
+    expect(protectionWindow(partial)).toBeNull();
+  });
+});

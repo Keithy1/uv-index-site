@@ -10,7 +10,7 @@
  */
 import { Hono } from "hono";
 
-import { buildCurve } from "./lib/chart";
+import { buildCurve, protectionWindow } from "./lib/chart";
 import { isIndexable } from "./lib/host";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
@@ -29,6 +29,8 @@ import * as arpansa from "./sources/arpansa";
 import { CityPage } from "./views/CityPage";
 import type { CityRow } from "./views/CountryPage";
 import { CountryPage } from "./views/CountryPage";
+import type { TomorrowRow } from "./views/TomorrowPage";
+import { TomorrowPage } from "./views/TomorrowPage";
 import * as mapAu from "./lib/map-au";
 import * as mapUs from "./lib/map-us";
 import type { CountryMap } from "./views/CountryPage";
@@ -304,6 +306,83 @@ app.get("/:country/", async (c) => {
       map={page.map}
       measured={page.measured}
       credit={page.credit}
+      cityPages={page.cityPages}
+    />,
+  );
+});
+
+
+/**
+ * Tomorrow's forecast for a country, e.g. /au/tomorrow/.
+ *
+ * Registered before the city route so that "tomorrow" is not read as a city
+ * slug. Everything here comes from CAMS — including the United States, where
+ * EPA publishes today only and so cannot answer this page at all.
+ */
+app.get("/:country/tomorrow/", async (c) => {
+  const country = c.req.param("country") as CountryCode;
+  const settings = countrySettings(country);
+  if (!settings || settings.status !== "live") return c.notFound();
+  const page = COUNTRY_PAGES[country];
+  if (!page) return c.notFound();
+
+  const now = new Date();
+  const { from, to } = dayWindow(now);
+  const live = locationsIn(country).filter((l) => l.status === "live");
+  const cities = live.length > 0 ? live : locationsIn(country);
+  const data = await countryData(c.env.DB, cities.map((l) => l.id), from, to, now);
+
+  let issuedAt: string | null = null;
+
+  const rows: TomorrowRow[] = cities.map((location) => {
+    // "Tomorrow" is the city's own tomorrow: at 6 am in Perth and 9 am in
+    // Sydney the two can be different UTC days.
+    const todayLocal = localDateKey(now.toISOString(), location.tz);
+    const tomorrowLocal = localDateKey(
+      new Date(Date.parse(`${todayLocal}T12:00:00Z`) + 86_400_000).toISOString(),
+      "UTC",
+    );
+    const row = data.get(location.id);
+    const points = (row?.forecast ?? [])
+      .filter((p) => localDateKey(p.validAt, location.tz) === tomorrowLocal)
+      .map((p) => ({ minutes: localMinutes(p.validAt, location.tz), uvi: p.uvi }));
+
+    // A partial day must never be reported as a peak. The forecast once
+    // stopped at 09:00 local and the page announced that hour's value as the
+    // day's maximum, which is wrong in the direction that matters: the real
+    // peak was later and higher. Require the solar middle of the day to be
+    // present before claiming to know the peak at all.
+    const covered =
+      points.some((pt) => pt.minutes <= 9 * 60) && points.some((pt) => pt.minutes >= 16 * 60);
+    if (points.length === 0 || !covered) {
+      return { location, peak: null, peakMinutes: null, window: null };
+    }
+    const peak = points.reduce((a, b) => (b.uvi > a.uvi ? b : a));
+    return {
+      location,
+      peak: peak.uvi,
+      peakMinutes: peak.minutes,
+      window: protectionWindow(points),
+    };
+  });
+
+  // The most recent issue time across the country, for the credit line.
+  for (const location of cities) {
+    for (const p of data.get(location.id)?.forecast ?? []) {
+      if (p.issuedAt && (!issuedAt || p.issuedAt > issuedAt)) issuedAt = p.issuedAt;
+    }
+  }
+
+  rows.sort((a, b) => (b.peak ?? -1) - (a.peak ?? -1));
+
+  c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
+  return c.html(
+    <TomorrowPage
+      country={settings}
+      rows={rows}
+      now={now}
+      issuedAt={issuedAt}
+      issuedTz={cities[0]?.tz ?? "UTC"}
       cityPages={page.cityPages}
     />,
   );

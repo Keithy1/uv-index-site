@@ -157,6 +157,8 @@ export interface SeriesPoint {
   readonly validAt: string;
   readonly uvi: number;
   readonly source: string;
+  /** When the forecast run was issued. Null for measurements. */
+  readonly issuedAt?: string | null;
 }
 
 export interface CityData {
@@ -189,19 +191,24 @@ export async function cityData(
 ): Promise<CityData> {
   const { results } = await db
     .prepare(
-      `SELECT source, kind, valid_at, uvi
+      `SELECT source, kind, valid_at, uvi, issued_at
        FROM readings
        WHERE location_id = ?1 AND valid_at >= ?2 AND valid_at <= ?3
        ORDER BY valid_at`,
     )
     .bind(locationId, fromUtc, toUtc)
-    .all<{ source: string; kind: string; valid_at: string; uvi: number }>();
+    .all<{ source: string; kind: string; valid_at: string; uvi: number; issued_at: string | null }>();
 
   const measured: SeriesPoint[] = [];
   const forecast: SeriesPoint[] = [];
   const clearSky: SeriesPoint[] = [];
   for (const row of results) {
-    const point = { validAt: row.valid_at, uvi: row.uvi, source: row.source };
+    const point = {
+      validAt: row.valid_at,
+      uvi: row.uvi,
+      source: row.source,
+      issuedAt: row.issued_at,
+    };
     if (row.kind === "measured") measured.push(point);
     else if (row.kind === "forecast_clear") clearSky.push(point);
     else forecast.push(point);
@@ -254,14 +261,21 @@ export async function countryData(
 
   const { results } = await db
     .prepare(
-      `SELECT location_id, source, kind, valid_at, uvi
+      `SELECT location_id, source, kind, valid_at, uvi, issued_at
        FROM readings
        WHERE valid_at >= ?1 AND valid_at <= ?2
          AND location_id IN (${placeholders})
        ORDER BY valid_at`,
     )
     .bind(fromUtc, toUtc, ...locationIds)
-    .all<{ location_id: string; source: string; kind: string; valid_at: string; uvi: number }>();
+    .all<{
+      location_id: string;
+      source: string;
+      kind: string;
+      valid_at: string;
+      uvi: number;
+      issued_at: string | null;
+    }>();
 
   const cutoff = now.getTime() - STALE_AFTER_MS;
   const byLocation = new Map<string, { measured: SeriesPoint[]; forecast: SeriesPoint[] }>();
@@ -270,7 +284,12 @@ export async function countryData(
   for (const row of results) {
     const bucket = byLocation.get(row.location_id);
     if (!bucket) continue;
-    const point = { validAt: row.valid_at, uvi: row.uvi, source: row.source };
+    const point = {
+      validAt: row.valid_at,
+      uvi: row.uvi,
+      source: row.source,
+      issuedAt: row.issued_at,
+    };
     if (row.kind === "measured") bucket.measured.push(point);
     else if (row.kind === "forecast") bucket.forecast.push(point);
   }

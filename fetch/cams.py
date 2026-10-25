@@ -35,8 +35,10 @@ because they are the parts that can be checked without a key.
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from .common import Record, check_uvi, utc_now
 
@@ -44,27 +46,38 @@ ADS_URL = "https://ads.atmosphere.copernicus.eu/api"
 DATASET = "cams-global-atmospheric-composition-forecasts"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; uvatlas-fetcher/1.0)"}
 
-# Launch locations needing a CAMS forecast: ARPANSA's 13 published stations.
-# Coordinates are the INSTRUMENT's own position, taken from the Lat/Lon columns
-# of ARPANSA's historical CSVs, not the city centre. Sydney's station is 20 km
-# south of the CBD and Melbourne's 14 km north-east; at a 0.4 degree grid that
-# can land in a different cell, and the whole point of validation is that the
-# forecast and the measurement describe the same place.
-AU_STATIONS: dict[str, tuple[float, float, str]] = {
-    "au-adl": (-34.95, 138.52, "Australia/Adelaide"),      # Adelaide
-    "au-ali": (-23.8, 133.89, "Australia/Darwin"),        # Alice Springs (NT time)
-    "au-bri": (-27.45, 153.03, "Australia/Brisbane"),      # Brisbane
-    "au-can": (-35.31, 149.2, "Australia/Sydney"),        # Canberra
-    "au-dar": (-12.43, 130.89, "Australia/Darwin"),        # Darwin
-    "au-emd": (-23.53, 148.16, "Australia/Brisbane"),      # Emerald (Qld time)
-    "au-gco": (-28.0, 153.37, "Australia/Brisbane"),      # Gold Coast
-    "au-kin": (-42.99, 147.29, "Australia/Hobart"),        # Hobart (Kingston stn)
-    "au-mel": (-37.73, 145.1, "Australia/Melbourne"),     # Melbourne
-    "au-new": (-32.9, 151.72, "Australia/Sydney"),        # Newcastle
-    "au-per": (-31.93, 115.98, "Australia/Perth"),         # Perth
-    "au-syd": (-34.04, 151.1, "Australia/Sydney"),        # Sydney
-    "au-tow": (-19.33, 146.76, "Australia/Brisbane"),      # Townsville (Qld)
-}
+# Stations come from data/stations.json, the same file src/lib/locations.ts
+# reads. They used to be written out separately in each language and they
+# drifted: this table keyed three Australian stations au-eme, au-gld and
+# au-hob while ARPANSA calls them emd, gco and kin, so those forecasts could
+# never join the cities they belonged to.
+_STATIONS_PATH = Path(__file__).resolve().parent.parent / "data" / "stations.json"
+
+
+def _load_stations() -> dict[str, dict]:
+    with open(_STATIONS_PATH, encoding="utf8") as f:
+        return {s["id"]: s for s in json.load(f)["stations"]}
+
+
+STATIONS = _load_stations()
+
+
+def stations_for(country: str) -> dict[str, tuple[float, float, str]]:
+    """(lat, lon, IANA zone) per station id, for one country."""
+    return {
+        sid: (s["lat"], s["lon"], s["tz"])
+        for sid, s in STATIONS.items()
+        if s["country"] == country
+    }
+
+
+AU_STATIONS = stations_for("au")
+US_STATIONS = stations_for("us")
+
+# Australia and the contiguous United States are nearly half the planet apart,
+# so one bounding box covering both would download most of the Pacific. Two
+# requests, each tight around its own cities, is far less data.
+AREAS = {"au": AU_STATIONS, "us": US_STATIONS}
 
 
 def uvi_from_uvbed(rate_w_m2: float) -> float:
@@ -99,9 +112,13 @@ def request_payload(date: str, run_time: str, area: list[float], lead_hours: int
     }
 
 
-def area_for(stations: list[str]) -> list[float]:
-    """Bounding box (with margin) around the given AU station coordinates."""
-    pts = [AU_STATIONS[s][:2] for s in stations]
+def area_for(
+    stations: list[str],
+    group: dict[str, tuple[float, float, str]] | None = None,
+) -> list[float]:
+    """Bounding box (with margin) around the given stations' coordinates."""
+    group = group if group is not None else AU_STATIONS
+    pts = [group[s][:2] for s in stations]
     lats = [p[0] for p in pts]
     lons = [p[1] for p in pts]
     return [round(max(lats) + 2, 2), round(min(lons) - 2, 2),
@@ -296,25 +313,49 @@ def _to_utc(value) -> datetime:
 def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Record]:
     """Fetch the forecast covering today and tomorrow, everywhere we publish.
 
-    Two model runs are requested, yesterday's 00Z and today's, each with 47
-    lead hours. That is deliberate and not belt-and-braces:
+    Two model runs are requested, yesterday's 00Z and today's, each with 72
+    lead hours. Both numbers were arrived at by getting them wrong first.
 
-    A single 00Z run with 24 lead hours covers 00:00-23:00 UTC, which in Perth
-    is 08:00 to 07:00 the next morning -- so a city page would have no forecast
-    for its own early morning, and the sun-protection window would start hours
-    late. Yesterday's run reaches back far enough to cover that, and where the
-    two overlap `parse_grib` keeps the later one, which is the better forecast.
+    24 lead hours covers 00:00-23:00 UTC, which in Perth is 08:00 to 07:00 the
+    next morning -- so a city page had no forecast for its own early morning
+    and the sun-protection window started hours late. Yesterday's run fixes
+    that end, and where the two overlap `parse_grib` keeps the later one.
 
-    Roughly 5 MB per fetch, twice a day, in GitHub Actions. The Worker never
-    touches this: it has 10 ms of CPU and no GRIB reader.
+    47 then looked sufficient, and was not: it reaches only to the day after
+    the run at 23:00 UTC, which for a UTC+10 city is 09:00 on its tomorrow. The
+    /au/tomorrow/ page duly reported Brisbane peaking at 6.1 at 9 am, because
+    9 am was the last hour that existed. 72 reaches past the end of tomorrow
+    in every zone we serve, with margin.
+
+    Both countries are fetched. The United States needs CAMS as well as EPA
+    because EPA publishes today only -- there is no tomorrow in its feed at
+    all -- so /us/tomorrow/ has no other source.
+
+    Roughly 5 MB per area per fetch, twice a day, in GitHub Actions. The Worker
+    never touches this: it has 10 ms of CPU and no GRIB reader.
     """
-    stations = stations if stations is not None else AU_STATIONS
     today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
 
-    payload = request_payload(str(today), "00:00", area_for(list(stations)), lead_hours=47)
-    payload["request"]["date"] = [f"{yesterday}/{today}"]
+    # An explicit set overrides the per-country split (used by the probe).
+    areas = {"custom": stations} if stations is not None else AREAS
 
-    target = "cams.grib"
-    retrieve(payload["request"], target)
-    return parse_grib(target, stations)
+    records: list[Record] = []
+    failures: list[str] = []
+    for name, group in areas.items():
+        if not group:
+            continue
+        payload = request_payload(str(today), "00:00", area_for(list(group), group), lead_hours=72)
+        payload["request"]["date"] = [f"{yesterday}/{today}"]
+        target = f"cams-{name}.grib"
+        try:
+            retrieve(payload["request"], target)
+            records.extend(parse_grib(target, group))
+        except Exception as exc:  # noqa: BLE001 - one area must not lose the other
+            failures.append(f"{name}: {type(exc).__name__}: {exc}")
+
+    if failures and not records:
+        raise RuntimeError("; ".join(failures))
+    if failures:
+        print(f"[cams] partial failure: {'; '.join(failures)}", flush=True)
+    return records
