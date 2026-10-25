@@ -37,18 +37,28 @@ The key lives only in GitHub Actions, which is also the only place the CAMS
 fetcher runs — so CAMS is tested by dispatching the workflow, not from a laptop.
 That is deliberate: nobody needs a copy of the key locally.
 
-## 2. Cloudflare D1 database — blocks deployment
+## 2. Cloudflare D1 database — DONE (25 October 2026)
 
-```sh
-npx wrangler login
-npx wrangler d1 create uvatlas
-```
+- [x] `wrangler login` (browser OAuth; no token ever passes through the agent).
+- [x] `wrangler d1 create uvatlas --location wnam` — id
+      `36e40279-adf1-4e11-8c0b-4d5b9f9f4686`, confirmed `running_in_region: WNAM`,
+      and written into `wrangler.jsonc`.
+- [x] `schema.sql` applied remotely: `readings`, `daily`, `monthly_normals`,
+      `source_health`.
+- [x] Verified end to end with live EPA data: 37 records in, 34 readings and
+      3 daily rows out, health row recorded.
 
-Put the `database_id` it prints into `wrangler.jsonc`, then:
+**Why WNAM.** D1's free plan has a single primary region and every cache-miss
+render reads from it. The site is worldwide, so this is a compromise: the US
+has much the largest search volume, Europe is about 140 ms away and Australia
+about 160 ms, where Eastern North America would have put Australia at ~230 ms.
+Edge caching (5 minutes for Australian pages, 60 for US) means most requests
+never reach the database at all.
 
-```sh
-npm run db:init:remote
-```
+The first attempt defaulted to Western Europe and was deleted while still
+empty. Note for next time: `wrangler d1 delete <name>` resolves the name
+against `wrangler.jsonc`, so with a placeholder id in there it fails — pass the
+UUID instead.
 
 ## 3. Cloudflare API token — blocks automatic deploys
 

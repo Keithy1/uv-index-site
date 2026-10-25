@@ -20,8 +20,12 @@
     {
       "binding": "DB",
       "database_name": "uvatlas",
-      // Filled in by `wrangler d1 create uvatlas` — see docs/setup.md
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      // Created 25 Oct 2026 with `wrangler d1 create uvatlas --location wnam`.
+      // Western North America: D1's free plan has a single primary region and
+      // every cache-miss render reads from it, so this is the compromise for a
+      // worldwide site whose largest search volume is the US while Australia
+      // still has to be usable. Not a secret; a database id is not a credential.
+      "database_id": "36e40279-adf1-4e11-8c0b-4d5b9f9f4686"
     }
   ]
 }
