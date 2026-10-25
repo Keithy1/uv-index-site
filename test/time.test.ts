@@ -70,3 +70,38 @@ describe("howLongAgo", () => {
     expect(howLongAgo("2026-01-14T23:00:00Z", now)).toBe("3 hours ago");
   });
 });
+
+describe("formatter caching", () => {
+  /**
+   * A country page converts roughly 2,500 timestamps per render. Building an
+   * Intl.DateTimeFormat for each one tipped the Worker over Cloudflare's
+   * free-plan 10 ms CPU limit: single requests returned 200 while a crawl
+   * produced "Worker exceeded CPU time limit". The bound below is generous —
+   * it is here to catch a return to per-call construction, which is roughly
+   * two orders of magnitude slower, not to police milliseconds.
+   */
+  it("converts a page's worth of timestamps quickly", () => {
+    const zones = [
+      "Australia/Sydney",
+      "Australia/Perth",
+      "Australia/Darwin",
+      "Australia/Adelaide",
+      "America/New_York",
+    ];
+    const start = performance.now();
+    for (let i = 0; i < 2500; i++) {
+      const tz = zones[i % zones.length]!;
+      const iso = new Date(Date.UTC(2026, 0, 15, i % 24, 0, 0)).toISOString();
+      localDateKey(iso, tz);
+      localMinutes(iso, tz);
+    }
+    expect(performance.now() - start).toBeLessThan(1500);
+  });
+
+  it("still returns correct values when the cache is warm", () => {
+    for (let i = 0; i < 50; i++) {
+      expect(localDateKey("2026-01-15T22:00:00Z", "Australia/Sydney")).toBe("2026-01-16");
+      expect(localMinutes("2026-01-15T02:00:00Z", "Australia/Sydney")).toBe(13 * 60);
+    }
+  });
+});

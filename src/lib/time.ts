@@ -6,22 +6,42 @@
  * observe daylight saving while New South Wales, Victoria, South Australia and
  * Tasmania do. A hard-coded offset is always a bug; `Intl` and the location's
  * IANA zone are the only correct way to get local time.
+ *
+ * **Formatters are cached, and that is not a micro-optimisation.** Constructing
+ * an `Intl.DateTimeFormat` is expensive — it loads locale and time-zone data —
+ * and these functions are called once per forecast point. A country page with
+ * 13 cities and 97 hourly values each was building about 2,500 formatters per
+ * render and tipping over the Cloudflare free plan's 10 ms CPU limit: single
+ * requests returned 200 while a crawl produced "Worker exceeded CPU time
+ * limit". Cached, there are at most a handful per zone for the life of the
+ * isolate.
  */
+
+type FormatterKey = string;
+
+const formatters = new Map<FormatterKey, Intl.DateTimeFormat>();
+
+function formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  // The options are a small fixed set, so a JSON key is cheap and exact.
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let found = formatters.get(key);
+  if (!found) {
+    found = new Intl.DateTimeFormat(locale, options);
+    formatters.set(key, found);
+  }
+  return found;
+}
 
 /** "2:34 pm" */
 export function localTime(iso: string, tz: string): string {
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  return formatter("en-AU", { timeZone: tz, hour: "numeric", minute: "2-digit" })
     .format(new Date(iso))
     .replace(/ /g, " ");
 }
 
 /** "2:34 pm AWST" — the zone abbreviation matters on a page about a place. */
 export function localTimeWithZone(iso: string, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-AU", {
+  const parts = formatter("en-AU", {
     timeZone: tz,
     hour: "numeric",
     minute: "2-digit",
@@ -33,7 +53,7 @@ export function localTimeWithZone(iso: string, tz: string): string {
 
 /** "Sunday 25 October" */
 export function localDate(iso: string, tz: string): string {
-  return new Intl.DateTimeFormat("en-AU", {
+  return formatter("en-AU", {
     timeZone: tz,
     weekday: "long",
     day: "numeric",
@@ -43,7 +63,7 @@ export function localDate(iso: string, tz: string): string {
 
 /** "2026-10-25" in the location's own zone — the key `daily` rows use. */
 export function localDateKey(iso: string, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const parts = formatter("en-CA", {
     timeZone: tz,
     year: "numeric",
     month: "2-digit",
@@ -55,17 +75,15 @@ export function localDateKey(iso: string, tz: string): string {
 
 /** The hour of the day, 0-23, in the location's zone. Used to place chart points. */
 export function localHour(iso: string, tz: string): number {
-  const hour = new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
-    hour: "numeric",
-    hour12: false,
-  }).format(new Date(iso));
+  const hour = formatter("en-GB", { timeZone: tz, hour: "numeric", hour12: false }).format(
+    new Date(iso),
+  );
   return Number(hour) % 24;
 }
 
 /** Minutes since local midnight, so a chart can place a reading precisely. */
 export function localMinutes(iso: string, tz: string): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = formatter("en-GB", {
     timeZone: tz,
     hour: "numeric",
     minute: "numeric",

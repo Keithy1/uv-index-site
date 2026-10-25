@@ -200,6 +200,15 @@ export function CountryPage(view: CountryView) {
 
       <CountryOutline rows={rows} map={view.map} countryName={country.name} />
 
+      {/* The tomorrow page had no inbound link at all when it was first
+          built: it existed, it worked, and nothing on the site pointed at
+          it. */}
+      <p class="small">
+        <a href={`/${country.code}/tomorrow/`}>
+          Tomorrow's forecast for every city →
+        </a>
+      </p>
+
       <h2>Every station</h2>
       <table>
         <thead>
