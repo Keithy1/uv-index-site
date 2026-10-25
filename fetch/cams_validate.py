@@ -152,18 +152,20 @@ def run_period(
 
 def print_table(results: list[Stats]) -> None:
     header = (
-        f"  {'station':9} {'period':24} {'hours':>6} {'bias':>7} "
-        f"{'MAE':>6} {'<=1.0':>6} {'clear':>6} {'implied k':>10}"
+        f"  {'station':9} {'period':24} {'hrs':>5} {'bias':>7} {'MAE':>6} "
+        f"{'<=1.0':>6} | {'camsN':>6} {'k(cams)':>8} | {'measN':>6} {'k(meas)':>8}"
     )
     print(f"\n{header}")
     for st in results:
         k = f"{st.multiplier:.1f}" if st.multiplier else "-"
+        km = f"{st.multiplier_measured:.1f}" if st.multiplier_measured else "-"
         bias = f"{st.bias:+.2f}" if st.bias is not None else "-"
         mae = f"{st.mae:.2f}" if st.mae is not None else "-"
         win = f"{st.within_one:.0f}%" if st.within_one is not None else "-"
         print(
-            f"  {st.station:9} {st.period:24} {st.daylight:6} {bias:>7} "
-            f"{mae:>6} {win:>6} {len(st.cloudless):6} {k:>10}"
+            f"  {st.station:9} {st.period:24} {st.daylight:5} {bias:>7} "
+            f"{mae:>6} {win:>6} | {len(st.cloudless):6} {k:>8} | "
+            f"{len(st.cloudless_measured):6} {km:>8}"
         )
 
 
@@ -173,18 +175,27 @@ def summarise(results: list[Stats], label: str) -> float | None:
     if not errors:
         print(f"\n{label}: no data")
         return None
+    measured_pairs = [p for st in results for p in st.cloudless_measured]
     k = fit_multiplier(cloudless)
+    km = fit_multiplier(measured_pairs)
     within = sum(1 for e in errors if abs(e) <= 1.0) / len(errors) * 100
     print(f"\n{label}")
     print(f"  daylight hours    : {len(errors):,}")
     print(f"  mean bias         : {statistics.fmean(errors):+.2f} UVI")
     print(f"  mean abs error    : {statistics.fmean(abs(e) for e in errors):.2f} UVI")
     print(f"  within 1.0 UVI    : {within:.0f}%")
-    print(f"  cloudless hours   : {len(cloudless):,}")
-    if k:
-        print(f"  pooled multiplier : {k:.1f}   ({(k - 40) / 40 * 100:+.1f}% vs 40)")
-        print(f"  implied model bias: {(40 / k - 1) * 100:+.0f}% (positive = CAMS reads high)")
-    return k
+    # The two filters are printed together on purpose: the CAMS one lets the
+    # model judge its own cloud, the measured one does not. If they disagree,
+    # the measured one is the trustworthy figure.
+    kt = f"{k:.1f}" if k else "too few"
+    kmt = f"{km:.1f}" if km else "too few"
+    print(f"  cloudless per CAMS       : {len(cloudless):>5,} hours -> multiplier {kt}")
+    print(f"  cloudless per measurement: {len(measured_pairs):>5,} hours -> multiplier {kmt}")
+    if k and km:
+        print(f"  the two filters differ by: {abs(k - km):.1f}")
+        print(f"  implied model bias       : {(40 / km - 1) * 100:+.0f}%"
+              f" (positive = CAMS reads high, measurement-based)")
+    return km or k
 
 
 def main(argv: list[str] | None = None) -> int:
