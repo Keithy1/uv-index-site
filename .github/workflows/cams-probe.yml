@@ -1,0 +1,71 @@
+name: cams-probe
+
+# Manual diagnostic. Answers the questions we cannot answer from a laptop,
+# because ADS_API_KEY exists only here:
+#   1. does the retrieve actually succeed with our payload?
+#   2. what comes back -- GRIB or netCDF, and how big?
+#   3. what are the variable names and units inside it?
+#   4. does UV index = dose rate x 40 give a believable number over Sydney?
+#
+# Run it from the Actions tab. It writes no data anywhere; the download is
+# uploaded as an artifact so the file itself can be inspected.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Forecast date (YYYY-MM-DD). Blank = yesterday."
+        required: false
+        default: ""
+      run:
+        description: "Model run"
+        required: false
+        default: "00:00"
+        type: choice
+        options: ["00:00", "12:00"]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Check the key is present
+        # Confirms the secret exists without ever printing it.
+        run: |
+          if [ -z "$ADS_API_KEY" ]; then
+            echo "ADS_API_KEY is not set on this repository" >&2
+            exit 1
+          fi
+          echo "ADS_API_KEY is present (${#ADS_API_KEY} characters)"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Probe CAMS
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m fetch.cams_probe --date "${{ inputs.date }}" --run "${{ inputs.run }}"
+          else
+            python -m fetch.cams_probe --run "${{ inputs.run }}"
+          fi
+
+      - name: Keep the download for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cams-probe-download
+          path: cams-probe.grib
+          if-no-files-found: ignore
+          retention-days: 7

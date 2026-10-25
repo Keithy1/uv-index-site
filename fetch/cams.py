@@ -27,10 +27,7 @@ because they are the parts that can be checked without a key.
 """
 from __future__ import annotations
 
-import base64
-import json
 import os
-import urllib.request
 from datetime import datetime, timezone
 
 from .common import Record, check_uvi, utc_now
@@ -98,35 +95,49 @@ def area_for(stations: list[str]) -> list[float]:
             round(min(lats) - 2, 2), round(max(lons) + 2, 2)]
 
 
-def _auth_header() -> dict[str, str]:
+def client():
+    """An ADS client authenticated from ADS_API_KEY.
+
+    Imported lazily so that the rest of this module -- the payload builder and
+    the UVI conversion, which the unit tests cover -- stays importable without
+    cdsapi installed.
+
+    A retrieve is an asynchronous job: submit, poll, then download. cdsapi does
+    all three, which is why the hand-rolled POST that used to live here was
+    replaced rather than fixed. The key is read from the environment and is
+    never logged.
+    """
+    try:
+        import cdsapi
+    except ImportError as exc:  # pragma: no cover - environment problem
+        raise RuntimeError(
+            "cdsapi is not installed; see requirements.txt"
+        ) from exc
+
     key = os.environ.get("ADS_API_KEY", "")
     if not key:
-        raise RuntimeError("ADS_API_KEY is not set (format UID:API_KEY)")
-    token = base64.b64encode(key.encode()).decode()
-    return {"Authorization": f"Basic {token}"}
+        raise RuntimeError("ADS_API_KEY is not set")
+    # quiet=True keeps the key out of cdsapi's own startup banner.
+    return cdsapi.Client(url=ADS_URL, key=key, quiet=True, progress=False)
 
 
-def fetch(payload: dict) -> bytes:
-    """POST the retrieve request to the ADS API. Validated at first deploy."""
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        f"{ADS_URL}/retrieve/v1/processes/{DATASET}/execute",
-        data=body, headers={**UA, **_auth_header(), "Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=300) as resp:
-        return resp.read()
+def retrieve(request: dict, target: str) -> str:
+    """Run one retrieve and write the result to `target`. Returns the path."""
+    client().retrieve(DATASET, request, target)
+    return target
 
 
 def run() -> list[Record]:
-    """Not usable yet: the transport has never run against the live ADS API.
+    """Not usable yet: nothing reads the downloaded file into records.
 
-    The payload is now correct (read off the ADS form), but a retrieve is an
-    asynchronous job and this module does not yet poll for it or download the
-    result. Switching to the official `cdsapi` client is the likely fix once a
-    key is available to test with. See docs/architecture.md.
+    The payload is correct (read off the ADS form) and `retrieve()` now submits
+    the job through cdsapi, but turning the result into Records needs facts the
+    probe has not yet established: whether GRIB or netCDF comes back, the
+    variable names inside it, and whether the x40 conversion gives believable
+    numbers. Run the cams-probe workflow first, then build this on what it
+    reports rather than on what we expect. See docs/architecture.md.
     """
     raise RuntimeError(
-        "CAMS fetch is not validated yet: the payload is correct but the "
-        "asynchronous retrieve transport is unimplemented. See docs/architecture.md."
+        "CAMS fetch is not built yet: run the cams-probe workflow to establish "
+        "the file format and variable names first. See docs/architecture.md."
     )

@@ -122,12 +122,21 @@ A fixture of that feed is kept at
   experimental on the form, so GRIB is the safer default and the Actions job will
   need a GRIB reader.
 
-  Still open: **the transport**. The form generates `cdsapi` client code, not a
-  plain POST, because a retrieve is an asynchronous job that must be polled and
-  then downloaded. Our hand-rolled POST has never run, so `run()` still raises;
-  moving to the official `cdsapi` client is the likely fix. And the derived index
-  must be validated against ARPANSA measurements in the same hour before it is
-  published anywhere.
+  **Transport is now the official `cdsapi` client** (a retrieve is an
+  asynchronous job that must be submitted, polled and downloaded, which the old
+  hand-rolled POST did not do). It has still never run against the live API.
+
+  Still open, and deliberately not guessed at: what the download actually
+  contains. The `cams-probe` workflow exists to answer that — whether GRIB or
+  netCDF comes back, the variable names and units inside it, and whether
+  UVI = rate x 40 gives a believable Sydney peak (roughly 10-13 in spring). It
+  runs in Actions because `ADS_API_KEY` lives there and nowhere else. `run()`
+  stays raising until the probe reports, so that the parser is built on
+  observation rather than expectation — which is exactly the mistake the
+  variable names already caught us out on.
+
+  Beyond that, the derived index must be validated against ARPANSA measurements
+  in the same hour before it is published anywhere.
 - All launch page templates: city, country, tomorrow, the guide, the world map,
   sitemaps, structured data.
 - Monthly normals from ARPANSA's historical datasets.
