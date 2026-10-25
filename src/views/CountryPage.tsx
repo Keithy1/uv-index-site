@@ -106,10 +106,9 @@ outline-offset:-3px}
 /* City name on hover. The label never takes pointer events, or it would cover
    neighbouring markers and make them unhoverable -- a real problem where the
    cities are close together. */
-.pin .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
-.pin:hover .tip{opacity:1}
+.tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
 .pin circle{cursor:default}
-@media (prefers-reduced-motion:reduce){.pin .tip{transition:none}}
+@media (prefers-reduced-motion:reduce){.tip{transition:none}}
 table{border-collapse:collapse;width:100%;margin:8px 0}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 /* Column headings only. The city cells are row headers (th scope="row") for
@@ -127,54 +126,19 @@ font-size:.82rem;color:var(--muted)}
 `;
 
 /**
- * One city marker, with the name on hover.
+ * City markers, and their hover labels, drawn as two separate layers.
  *
- * The label is part of the SVG and shown by CSS, so there is still no
- * JavaScript. `pointer-events: none` on the label matters: without it the
- * label would sit over neighbouring markers and swallow their hover, which on
- * the crowded US east coast means several cities become unhoverable.
+ * They have to be separate. SVG paints in document order and has no working
+ * z-index, so a label inside its own marker group is painted *before* every
+ * marker that comes after it — and a neighbouring city then covers it. That is
+ * exactly what happened: hovering Tampa showed its label with the marker to
+ * its right sitting on top of the text.
  *
- * The group carries an aria-label rather than a <title>, because <title>
- * produces a second, delayed native tooltip saying the same thing. Markers are
- * not focusable: fifty tab stops to reach a table that is directly below and
- * carries every figure would make the page worse, not better.
+ * So every marker is drawn first, then every label, and a generated rule per
+ * city connects the two. The cost is one CSS rule per city, which compresses
+ * to almost nothing because the rules are near-identical.
  */
-function Marker({
-  name,
-  uvi,
-  x,
-  y,
-}: {
-  name: string;
-  uvi: number;
-  x: number;
-  y: number;
-}) {
-  const band = bandFor(uvi);
-  const label = `${name} ${formatUvi(uvi)}`;
-  // SVG cannot size a box to its text, so estimate: ~4.6px per character at
-  // font-size 8.5, plus padding. Generous rather than tight, since a label
-  // slightly too wide looks fine and one too narrow clips.
-  const width = label.length * 4.6 + 12;
-  const flip = y < 26; // near the top edge, put the label below instead
-  const ty = flip ? y + 13 : y - 23;
-
-  return (
-    <g class="pin" role="img" aria-label={`${name}: UV ${formatUvi(uvi)} ${band.name}`}>
-      <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
-      <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
-        text-anchor="middle">{Math.round(uvi)}</text>
-      <g class="tip">
-        <rect x={x - width / 2} y={ty} width={width} height="15" rx="4"
-          fill="var(--fg)" stroke="var(--bg)" stroke-width="0.8" />
-        <text x={x} y={ty + 10.5} font-size="8.5" font-weight="600" fill="var(--bg)"
-          text-anchor="middle">{label}</text>
-      </g>
-    </g>
-  );
-}
-
-function Markers({
+function MarkerLayer({
   rows,
   map,
   value,
@@ -189,12 +153,64 @@ function Markers({
         const uvi = value(r);
         if (uvi === null) return null;
         const { x, y } = map.project(r.location.lat, r.location.lon);
+        const band = bandFor(uvi);
         return (
-          <Marker key={r.location.id} name={r.location.name} uvi={uvi} x={x} y={y} />
+          <g
+            key={r.location.id}
+            class={`pin p-${r.location.id}`}
+            role="img"
+            aria-label={`${r.location.name}: UV ${formatUvi(uvi)} ${band.name}`}
+          >
+            <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
+            <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
+              text-anchor="middle">{Math.round(uvi)}</text>
+          </g>
         );
       })}
     </>
   );
+}
+
+function TipLayer({
+  rows,
+  map,
+  value,
+}: {
+  rows: readonly CityRow[];
+  map: CountryMap;
+  value: (r: CityRow) => number | null;
+}) {
+  return (
+    <>
+      {rows.map((r) => {
+        const uvi = value(r);
+        if (uvi === null) return null;
+        const { x, y } = map.project(r.location.lat, r.location.lon);
+        const label = `${r.location.name} ${formatUvi(uvi)}`;
+        // SVG cannot size a box to its text, so estimate from character
+        // count: generous rather than tight, because slightly too wide looks
+        // fine and too narrow clips.
+        const width = label.length * 4.6 + 12;
+        const flip = y < 26; // near the top edge, put the label below instead
+        const ty = flip ? y + 13 : y - 23;
+        return (
+          <g key={r.location.id} class={`tip t-${r.location.id}`} aria-hidden="true">
+            <rect x={x - width / 2} y={ty} width={width} height="15" rx="4"
+              fill="var(--fg)" stroke="var(--bg)" stroke-width="0.8" />
+            <text x={x} y={ty + 10.5} font-size="8.5" font-weight="600" fill="var(--bg)"
+              text-anchor="middle">{label}</text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+/** One rule per city, joining its marker to its label across the two layers. */
+function tipRules(rows: readonly CityRow[]): string {
+  return rows
+    .map((r) => `.daymap:has(.p-${r.location.id}:hover) .t-${r.location.id}{opacity:1}`)
+    .join("");
 }
 
 function CountryOutline({
@@ -234,12 +250,16 @@ function CountryOutline({
         >
           <path d={map.outlinePath} fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"
             stroke-linejoin="round" opacity="0.75" />
+          {/* Markers first, labels second, so a label is never painted
+              under a neighbouring marker. */}
           <g class="m-today">
-            <Markers rows={rows} map={map} value={(r) => r.uvi} />
+            <MarkerLayer rows={rows} map={map} value={(r) => r.uvi} />
+            <TipLayer rows={rows} map={map} value={(r) => r.uvi} />
           </g>
           {hasTomorrow && (
             <g class="m-tomorrow">
-              <Markers rows={rows} map={map} value={(r) => r.tomorrow} />
+              <MarkerLayer rows={rows} map={map} value={(r) => r.tomorrow} />
+              <TipLayer rows={rows} map={map} value={(r) => r.tomorrow} />
             </g>
           )}
         </svg>
@@ -314,7 +334,7 @@ export function CountryPage(view: CountryView) {
       country={country.code}
       structuredData={structuredData}
     >
-      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + tipRules(rows) }} />
 
       <h1>UV Index {country.name}</h1>
 

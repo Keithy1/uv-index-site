@@ -56,9 +56,8 @@ background:var(--card);padding:8px}
 .mapbox a:hover path{opacity:.82}
 /* The same hover label as the country maps. pointer-events:none so the label
    cannot block the country beneath it. */
-.pin .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
-.pin:hover .tip,.pin:focus-visible .tip{opacity:1}
-@media (prefers-reduced-motion:reduce){.mapbox a path,.pin .tip{transition:none}}
+.tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
+@media (prefers-reduced-motion:reduce){.mapbox a path,.tip{transition:none}}
 .countries{list-style:none;padding:0;margin:16px 0;display:grid;gap:10px}
 .countries li{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .countries a.name{font-weight:600;font-size:1.05rem;text-decoration:none}
@@ -143,7 +142,7 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
           return (
             <a
               key={h.country.code}
-              class="pin"
+              class={`pin p-${h.country.code}`}
               href={`/${h.country.code}/`}
               aria-label={`${h.country.name}${
                 h.uvi !== null ? `: UV ${formatUvi(h.uvi)} ${band!.name}` : ""
@@ -162,15 +161,25 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
                   stroke-width="2"
                 />
               )}
-              {marker && (
-                <g class="tip">
-                  <rect x={marker.x - width / 2} y={marker.y - 38} width={width} height="24"
-                    rx="6" fill="var(--fg)" stroke="var(--bg)" stroke-width="1.2" />
-                  <text x={marker.x} y={marker.y - 21} font-size="14" font-weight="600"
-                    fill="var(--bg)" text-anchor="middle">{label}</text>
-                </g>
-              )}
             </a>
+          );
+        })}
+        {/* Labels last, so one is never painted under another country's
+            marker. Same reason as the country maps: SVG paints in document
+            order and has no working z-index. */}
+        {headlines.map((h) => {
+          if (!COUNTRY_PATHS[h.country.code] || !h.marker) return null;
+          const marker = projectWorld(h.marker.lat, h.marker.lon);
+          const label =
+            h.uvi !== null ? `${h.country.name} ${formatUvi(h.uvi)}` : h.country.name;
+          const width = label.length * 7.5 + 20;
+          return (
+            <g key={`${h.country.code}-tip`} class={`tip t-${h.country.code}`} aria-hidden="true">
+              <rect x={marker.x - width / 2} y={marker.y - 38} width={width} height="24"
+                rx="6" fill="var(--fg)" stroke="var(--bg)" stroke-width="1.2" />
+              <text x={marker.x} y={marker.y - 21} font-size="14" font-weight="600"
+                fill="var(--bg)" text-anchor="middle">{label}</text>
+            </g>
           );
         })}
       </svg>
@@ -197,7 +206,19 @@ export function HomePage(view: HomeView) {
 
   return (
     <Layout title={title} description={description} path="/" structuredData={structuredData}>
-      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
+      <style
+        dangerouslySetInnerHTML={{
+          __html:
+            PAGE_CSS +
+            view.headlines
+              .map(
+                (h) =>
+                  `.mapbox:has(.p-${h.country.code}:hover) .t-${h.country.code},` +
+                  `.mapbox:has(.p-${h.country.code}:focus-visible) .t-${h.country.code}{opacity:1}`,
+              )
+              .join(""),
+        }}
+      />
 
       <h1>UV index today and tomorrow</h1>
       <p class="intro">
