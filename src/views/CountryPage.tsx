@@ -102,6 +102,14 @@ outline-offset:-3px}
 .daymap:has(label[for="day-today"]:hover) .m-tomorrow{display:none}
 .daymap:has(label[for="day-today"]:hover) .m-today{display:inline}
 .daycap{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+
+/* City name on hover. The label never takes pointer events, or it would cover
+   neighbouring markers and make them unhoverable -- a real problem where the
+   cities are close together. */
+.pin .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
+.pin:hover .tip{opacity:1}
+.pin circle{cursor:default}
+@media (prefers-reduced-motion:reduce){.pin .tip{transition:none}}
 table{border-collapse:collapse;width:100%;margin:8px 0}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 /* Column headings only. The city cells are row headers (th scope="row") for
@@ -118,6 +126,54 @@ font-size:.82rem;color:var(--muted)}
 @media (max-width:460px){th.hide,td.hide{display:none}}
 `;
 
+/**
+ * One city marker, with the name on hover.
+ *
+ * The label is part of the SVG and shown by CSS, so there is still no
+ * JavaScript. `pointer-events: none` on the label matters: without it the
+ * label would sit over neighbouring markers and swallow their hover, which on
+ * the crowded US east coast means several cities become unhoverable.
+ *
+ * The group carries an aria-label rather than a <title>, because <title>
+ * produces a second, delayed native tooltip saying the same thing. Markers are
+ * not focusable: fifty tab stops to reach a table that is directly below and
+ * carries every figure would make the page worse, not better.
+ */
+function Marker({
+  name,
+  uvi,
+  x,
+  y,
+}: {
+  name: string;
+  uvi: number;
+  x: number;
+  y: number;
+}) {
+  const band = bandFor(uvi);
+  const label = `${name} ${formatUvi(uvi)}`;
+  // SVG cannot size a box to its text, so estimate: ~4.6px per character at
+  // font-size 8.5, plus padding. Generous rather than tight, since a label
+  // slightly too wide looks fine and one too narrow clips.
+  const width = label.length * 4.6 + 12;
+  const flip = y < 26; // near the top edge, put the label below instead
+  const ty = flip ? y + 13 : y - 23;
+
+  return (
+    <g class="pin" role="img" aria-label={`${name}: UV ${formatUvi(uvi)} ${band.name}`}>
+      <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
+      <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
+        text-anchor="middle">{Math.round(uvi)}</text>
+      <g class="tip">
+        <rect x={x - width / 2} y={ty} width={width} height="15" rx="4"
+          fill="var(--fg)" stroke="var(--bg)" stroke-width="0.8" />
+        <text x={x} y={ty + 10.5} font-size="8.5" font-weight="600" fill="var(--bg)"
+          text-anchor="middle">{label}</text>
+      </g>
+    </g>
+  );
+}
+
 function Markers({
   rows,
   map,
@@ -133,13 +189,8 @@ function Markers({
         const uvi = value(r);
         if (uvi === null) return null;
         const { x, y } = map.project(r.location.lat, r.location.lon);
-        const band = bandFor(uvi);
         return (
-          <g key={r.location.id}>
-            <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
-            <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
-              text-anchor="middle">{Math.round(uvi)}</text>
-          </g>
+          <Marker key={r.location.id} name={r.location.name} uvi={uvi} x={x} y={y} />
         );
       })}
     </>

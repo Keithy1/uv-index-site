@@ -54,6 +54,11 @@ background:var(--card);padding:8px}
 .mapbox a:focus-visible path,.mapbox a:focus-visible circle{outline:none}
 .mapbox a path{transition:opacity .12s}
 .mapbox a:hover path{opacity:.82}
+/* The same hover label as the country maps. pointer-events:none so the label
+   cannot block the country beneath it. */
+.pin .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
+.pin:hover .tip,.pin:focus-visible .tip{opacity:1}
+@media (prefers-reduced-motion:reduce){.mapbox a path,.pin .tip{transition:none}}
 .countries{list-style:none;padding:0;margin:16px 0;display:grid;gap:10px}
 .countries li{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .countries a.name{font-weight:600;font-size:1.05rem;text-decoration:none}
@@ -129,12 +134,21 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
           if (!path) return null;
           const band = h.uvi !== null ? bandFor(h.uvi) : null;
           const marker = h.marker ? projectWorld(h.marker.lat, h.marker.lon) : null;
+          // Same hover label as the country maps, so the three behave alike.
+          const label =
+            h.uvi !== null
+              ? `${h.country.name} ${formatUvi(h.uvi)}`
+              : h.country.name;
+          const width = label.length * 7.5 + 20;
           return (
-            <a key={h.country.code} href={`/${h.country.code}/`}>
-              <title>
-                {h.country.name}
-                {h.uvi !== null ? ` — UV ${formatUvi(h.uvi)} ${band!.name}` : ""}
-              </title>
+            <a
+              key={h.country.code}
+              class="pin"
+              href={`/${h.country.code}/`}
+              aria-label={`${h.country.name}${
+                h.uvi !== null ? `: UV ${formatUvi(h.uvi)} ${band!.name}` : ""
+              }`}
+            >
               <path d={path} fill={band ? band.bg : "var(--link)"} />
               {/* A country too small to tap at phone width still gets a
                   target big enough to hit. */}
@@ -147,6 +161,14 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
                   stroke="var(--bg)"
                   stroke-width="2"
                 />
+              )}
+              {marker && (
+                <g class="tip">
+                  <rect x={marker.x - width / 2} y={marker.y - 38} width={width} height="24"
+                    rx="6" fill="var(--fg)" stroke="var(--bg)" stroke-width="1.2" />
+                  <text x={marker.x} y={marker.y - 21} font-size="14" font-weight="600"
+                    fill="var(--bg)" text-anchor="middle">{label}</text>
+                </g>
               )}
             </a>
           );
