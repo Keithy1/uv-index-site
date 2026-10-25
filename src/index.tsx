@@ -34,6 +34,9 @@ import * as mapUs from "./lib/map-us";
 import type { CountryMap } from "./views/CountryPage";
 import type { CountryHeadline } from "./views/HomePage";
 import { HomePage } from "./views/HomePage";
+import { About, Privacy, Terms } from "./views/pages/Legal";
+import { Guide } from "./views/pages/Guide";
+import { Methods } from "./views/pages/Methods";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -219,6 +222,26 @@ const COUNTRY_PAGES: Record<string, {
     cityPages: false,
   },
 };
+
+
+/**
+ * Static pages. Cached for a day: nothing on them changes with the data, and
+ * they are the pages most likely to be read start to finish.
+ */
+const STATIC_PAGES = {
+  "/uv-index-explained/": Guide,
+  "/methods/": Methods,
+  "/about/": About,
+  "/privacy/": Privacy,
+  "/terms/": Terms,
+} as const;
+
+for (const [path, Page] of Object.entries(STATIC_PAGES)) {
+  app.get(path, (c) => {
+    c.header("Cache-Control", "public, max-age=86400, stale-while-revalidate=86400");
+    return c.html(<Page />);
+  });
+}
 
 /** UTC window generous enough to contain any city's local day. */
 function dayWindow(now: Date): { from: string; to: string } {
