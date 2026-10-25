@@ -54,3 +54,30 @@ class PackageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClearnessTests(unittest.TestCase):
+    """The clearness metric is a cloud detector built from the instrument alone.
+
+    It exists so the multiplier fit does not depend on CAMS judging its own
+    cloud, so it has to actually discriminate.
+    """
+
+    def test_a_straight_line_is_perfectly_clear(self):
+        from ..arpansa_history import _line_residual
+
+        points = [(m, 5.0 + 0.01 * m) for m in range(-30, 31)]
+        self.assertAlmostEqual(_line_residual(points), 0.0, places=9)
+
+    def test_an_oscillating_curve_is_not_clear(self):
+        from ..arpansa_history import _line_residual
+
+        # Same trend, with cloud putting 1.0-UVI swings through it.
+        points = [(m, 5.0 + 0.01 * m + (1.0 if m % 4 < 2 else -1.0)) for m in range(-30, 31)]
+        self.assertGreater(_line_residual(points), 0.9)
+
+    def test_a_single_dip_is_detected(self):
+        from ..arpansa_history import _line_residual
+
+        points = [(m, 5.0 if not -5 <= m <= 5 else 2.0) for m in range(-30, 31)]
+        self.assertGreater(_line_residual(points), 0.3)

@@ -146,3 +146,74 @@ def hourly_means(
             buckets.setdefault(hour, []).append(uv)
 
     return {hour: sum(vals) / len(vals) for hour, vals in buckets.items() if vals}
+
+
+def hourly_clearness(
+    path: str,
+    tz_name: str,
+    window_minutes: int = 30,
+    year: int = 2025,
+) -> dict[datetime, float]:
+    """How smooth the MEASURED curve was around each hour, keyed by UTC instant.
+
+    This is a cloud detector built from the instrument alone, with no model
+    involved. It exists because the obvious way to find cloudless hours -- ask
+    CAMS whether its all-sky value matches its own clear-sky value -- lets the
+    model mark its own homework. If CAMS is systematically optimistic about
+    clear skies, that filter cannot see it, and the whole "CAMS reads 13% high"
+    finding rests on it.
+
+    How it works: over an hour, a cloudless UV curve is almost a straight line
+    (it is a slow bell, and an hour is a small slice of it). Cloud puts dips and
+    spikes in. So fit a least-squares line through the minute readings in the
+    window and measure how far they sit from it, relative to the level:
+
+        clearness = mean|value - fitted line| / mean(value)
+
+    Near zero means smooth, hence cloudless. Larger means broken cloud.
+    Scale-free, so it behaves the same at UVI 3 and UVI 14.
+
+    Returns the ratio, not a yes/no: the threshold is a calibration decision and
+    belongs with the caller.
+    """
+    offset = standard_offset(tz_name, year)
+    buckets: dict[datetime, list[tuple[int, float]]] = {}
+
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            try:
+                uv = float(row["UV_Index"])
+                local = datetime.strptime(row["Date-Time"], "%Y-%m-%d %H:%M:%S")
+            except (KeyError, TypeError, ValueError):
+                continue
+            moment = local.replace(tzinfo=timezone.utc) - offset
+            hour = moment.replace(minute=0, second=0, microsecond=0)
+            delta = (moment - hour).total_seconds() / 60.0
+            # Each minute contributes to the hour it is nearest to.
+            if delta <= window_minutes:
+                buckets.setdefault(hour, []).append((int(delta), uv))
+            if delta >= 60 - window_minutes:
+                nxt = hour + timedelta(hours=1)
+                buckets.setdefault(nxt, []).append((int(delta - 60), uv))
+
+    out: dict[datetime, float] = {}
+    for hour, points in buckets.items():
+        if len(points) < 20:
+            continue
+        mean_uv = sum(v for _m, v in points) / len(points)
+        if mean_uv < 1.0:
+            continue  # night or twilight: nothing to judge
+        out[hour] = _line_residual(points) / mean_uv
+    return out
+
+
+def _line_residual(points: list[tuple[int, float]]) -> float:
+    """Mean absolute distance from the least-squares line through the points."""
+    n = len(points)
+    mean_x = sum(x for x, _y in points) / n
+    mean_y = sum(y for _x, y in points) / n
+    sxx = sum((x - mean_x) ** 2 for x, _y in points)
+    sxy = sum((x - mean_x) * (y - mean_y) for x, y in points)
+    slope = sxy / sxx if sxx > 0 else 0.0
+    intercept = mean_y - slope * mean_x
+    return sum(abs(y - (slope * x + intercept)) for x, y in points) / n

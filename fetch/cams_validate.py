@@ -36,8 +36,15 @@ from .cams import AU_STATIONS, area_for, parse_grib, request_payload, retrieve
 
 RULE = "=" * 72
 
-# All-sky within this fraction of clear-sky counts as a cloudless hour.
+# All-sky within this fraction of clear-sky counts as a cloudless hour --
+# according to CAMS itself. Kept only so the two filters can be compared.
 CLOUDLESS_RATIO = 0.95
+# Measured smoothness below which an hour is cloudless, from the INSTRUMENT
+# alone. Calibrated on Sydney 2025: the distribution has a clear knee here
+# (p25 = 0.0093, p50 = 0.055), and it picks ~26% of daylight hours, which
+# matches the number of clear hours a year Sydney actually gets. A heavily
+# clouded day scored 0.145 and a clear one 0.023.
+CLEARNESS_MAX = 0.01
 # Below this the hour is night or twilight and tells us nothing.
 DAYLIGHT_UVI = 1.0
 # Fewer cloudless hours than this and a fitted multiplier is noise.
@@ -57,7 +64,11 @@ class Stats:
     period: str
     daylight: int = 0
     errors: list[float] = field(default_factory=list)
+    # Cloudless according to CAMS's own clear-sky field.
     cloudless: list[tuple[float, float]] = field(default_factory=list)
+    # Cloudless according to the measured curve's smoothness -- independent of
+    # the model, which is the whole point.
+    cloudless_measured: list[tuple[float, float]] = field(default_factory=list)
 
     @property
     def bias(self) -> float | None:
@@ -79,9 +90,16 @@ class Stats:
             return None
         return fit_multiplier(self.cloudless)
 
+    @property
+    def multiplier_measured(self) -> float | None:
+        if len(self.cloudless_measured) < MIN_CLOUDLESS:
+            return None
+        return fit_multiplier(self.cloudless_measured)
 
-def compare(station: str, records, measured, period: str) -> Stats:
+
+def compare(station: str, records, measured, period: str, clearness=None) -> Stats:
     """Align one station's forecast against its measurements."""
+    clearness = clearness or {}
     stats = Stats(station=station, period=period)
     for rec in records:
         if rec.location != station:
@@ -93,9 +111,13 @@ def compare(station: str, records, measured, period: str) -> Stats:
             continue
         stats.daylight += 1
         stats.errors.append(rec.uvi - obs)
+        rate = rec.uvi / 40.0  # back to the raw dose rate
         clear = rec.extra.get("clear_sky_uvi") if rec.extra else None
         if clear and clear > 0 and rec.uvi / clear >= CLOUDLESS_RATIO:
-            stats.cloudless.append((obs, rec.uvi / 40.0))  # back to the raw rate
+            stats.cloudless.append((obs, rate))
+        smoothness = clearness.get(rec.valid_at)
+        if smoothness is not None and smoothness <= CLEARNESS_MAX:
+            stats.cloudless_measured.append((obs, rate))
     return stats
 
 
@@ -120,10 +142,11 @@ def run_period(
         try:
             csv_path = arpansa_history.download(station, start.year, cache)
             measured = arpansa_history.hourly_means(csv_path, tz, year=start.year)
+            clearness = arpansa_history.hourly_clearness(csv_path, tz, year=start.year)
         except Exception as exc:  # noqa: BLE001 - a missing year is not fatal
             print(f"  {station}: measurements unavailable ({exc})")
             continue
-        results.append(compare(station, records, measured, period))
+        results.append(compare(station, records, measured, period, clearness))
     return results
 
 
