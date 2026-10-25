@@ -110,72 +110,59 @@ A fixture of that feed is kept at
 
 ## Does the CAMS forecast agree with reality?
 
-Validated 25 October 2026 against ARPANSA's measured history for 14–27 October
-2025, four stations, via the `cams-validate` workflow.
+Validated 25 October 2026 against ARPANSA's measured history: **all 13 stations,
+two seasons** (8–21 January and 14–27 October 2025), 3,516 paired daylight hours.
+Run 40217881221.
 
-### Forecast accuracy — good enough to publish
+### Forecast accuracy
 
-| Station | Hours | Mean bias | Mean abs error | Within 1.0 UVI |
-|---|---|---|---|---|
-| Sydney | 132 | +0.48 | 0.88 | 67% |
-| Perth | 126 | +0.18 | 0.96 | 70% |
-| Melbourne | 118 | +0.15 | 0.92 | 64% |
-| Darwin | 126 | +0.57 | 1.32 | 50% |
+| | January (summer) | October (spring) | Pooled |
+|---|---|---|---|
+| Daylight hours | 1,845 | 1,671 | 3,516 |
+| Mean bias | +0.27 | +0.52 | **+0.39 UVI** |
+| Mean abs error | 1.32 | 1.08 | **1.20 UVI** |
+| Within 1.0 UVI | 54% | 61% | **57%** |
 
-Daily peaks are better than the hourly figures suggest: ten of Sydney's fourteen
-days landed within ±0.6 UVI of measured. The large misses are all CAMS
-under-forecasting cloud (20 October: forecast 8.2, measured 6.2), which is a
-cloud-forecasting limitation rather than a UV one. Darwin is the weakest, as
-expected for the tropics in build-up season.
+Best stations are Adelaide, Melbourne, Perth, Newcastle and Sydney (MAE
+0.82–0.96, ~70% within 1.0). Worst are the tropics and the subtropical east
+coast in summer — Darwin 1.87, Gold Coast 1.98, Brisbane 1.85 — which is
+convective cloud the model cannot place, not a UV failure.
 
 These are the figures the methods page should quote.
 
-### The conversion is sound; the model reads about 12% high
+### The model reads about 13% high, consistently
 
-Fitting measured UVI against the raw dose rate on cloudless hours gives the
-multiplier the data itself implies, against the 40 that `UVI = rate / 0.025 W/m²`
-assumes:
+Fitting measured UVI against the raw dose rate on cloudless hours, against the
+40 that `UVI = rate / 0.025 W/m²` assumes:
 
-| Station | Cloudless hours | Implied multiplier |
-|---|---|---|
-| Melbourne | 21 | 37.6 |
-| Perth | 47 | 36.3 |
-| Sydney | 53 | 35.3 |
-| Darwin | 22 | 34.0 |
+| | Implied multiplier |
+|---|---|
+| January | 36.0 |
+| October | 34.3 |
+| **Pooled** | **35.3** (−11.8% vs 40) |
 
-Mean 35.8, spread 34.0–37.6, standard deviation 1.5, and **every station below
-40**. The automated check flags anything past 10% as "NOT consistent", which
-fires for Sydney and Darwin — but that threshold is answering the wrong
-question.
+24 of 26 station-seasons produced a usable fit (Darwin in January and Kingston
+in October had too few cloudless hours). Range 32.6–39.6, standard deviation
+1.9. Seasonal spread 1.7.
 
-**This is not a unit error.** A unit error is never 12%: joules accumulated over
-an hour rather than watts would be out by a factor of 3600, and a scaling
-mistake by 10 or 1000. Twelve per cent is a calibration difference. Since
-`UVI = E_eff / 0.025 W/m²` is the WHO *definition*, ×40 is correct by
-construction once the units are W/m², and what has actually been measured is
-CAMS reading roughly 12% high against these instruments. The consistent positive
-bias in the accuracy table is the same finding seen from the other side.
+The offset is stable: 1.7 between seasons and sd 1.9 between stations, against a
+consistent ~4.7 distance from 40. **Every one of the 24 fits is below 40.**
 
-**So ×40 stays, and no bias correction is applied yet.** Four stations, one
-fortnight, one season is not a basis for one. Two weaknesses in the test itself
-argue for the same caution:
+This is not a unit error — a unit error is never 13%; accumulated joules rather
+than watts would be out by 3600. Since `UVI = E_eff / 0.025 W/m²` is the WHO
+*definition*, ×40 is right by construction once the units are W/m², and what has
+been measured is CAMS reading about 13% high against these instruments.
 
-- "Cloudless" is defined as all-sky within 5% of CAMS's *own* clear-sky, so if
-  the model runs high in clear conditions the filter cannot see it. It is
-  marking its own homework.
-- Darwin and Melbourne contributed only ~21 cloudless hours each.
+Caveat that still stands: "cloudless" is defined as all-sky within 5% of CAMS's
+*own* clear-sky, so the filter cannot detect a model that runs high in clear
+conditions. It marks its own homework.
 
-One hypothesis has been ruled out. Re-running Sydney with the corrected
-instrument coordinates (below) produced *identical* figures to four significant
-places — multiplier 35.3, bias +0.48, MAE 0.88 — so the station and the city
-centre fall in the same 0.4 degree cell, and the bias is genuine model
-behaviour rather than an artefact of pointing at the wrong place. The
-coordinate fix is still right on principle; it simply does not explain this.
-
-Before launch: re-run across all thirteen stations and at least two seasons,
-then decide whether a correction is justified. If one is applied it is a derived
-product, and the CAMS licence then requires the "Contains modified Copernicus
-Atmosphere Monitoring Service information" wording.
+**Open decision:** whether to apply a global correction (×35.3 instead of ×40,
+i.e. 0.88) or keep ×40 and publish the bias. Reading high is the *safe*
+direction for a sun-protection site, but it costs credibility against the Bureau
+and SunSmart. If a correction is applied it becomes a derived product and the
+CAMS licence requires the "Contains modified Copernicus Atmosphere Monitoring
+Service information" wording.
 
 ### Station coordinates corrected
 
