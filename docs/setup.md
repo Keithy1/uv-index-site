@@ -22,23 +22,20 @@ run. Always set them with `gh secret set <NAME> --repo Keithy1/uv-index-site`,
 which prompts for the value rather than taking it on the command line, so it
 never lands in your shell history or in a log.
 
-## 1. Copernicus ADS — blocks the forecast feed
+## 1. Copernicus ADS — DONE (25 October 2026)
 
-The whole Australian forecast (tomorrow's peak, today's curve, sun-protection
-times) comes from CAMS.
+The Australian forecast (tomorrow's peak, today's curve, sun-protection times)
+comes from CAMS. All three prerequisites are in place:
 
-- [x] **Account exists.** Checked 25 October 2026: signed in as Keith Edward
-      Chester on <https://ads.atmosphere.copernicus.eu/>.
-- [ ] **Accept the dataset licence.** On the
-      [CAMS global atmospheric composition forecasts download tab](https://ads.atmosphere.copernicus.eu/datasets/cams-global-atmospheric-composition-forecasts?tab=download),
-      under "Terms of use", the CC-BY licence still shows an **Accept terms**
-      button, so it has not been accepted. Requests fail until it is. This is a
-      licence agreement, so it needs your click or your explicit go-ahead.
-- [ ] **API key.** On <https://ads.atmosphere.copernicus.eu/profile>, format
-      `UID:API_KEY`. Set it yourself so the value never passes through the chat
-      or a log — this prompts for it and does not echo:
+- [x] **Account** — signed in as Keith Edward Chester.
+- [x] **CC-BY dataset licence accepted** — the Terms of use section on the
+      [CAMS forecasts download tab](https://ads.atmosphere.copernicus.eu/datasets/cams-global-atmospheric-composition-forecasts?tab=download)
+      now reads "✓ Accepted". Requests fail without this.
+- [x] **`ADS_API_KEY` set** as a GitHub Actions secret on `Keithy1/uv-index-site`.
 
-      gh secret set ADS_API_KEY --repo Keithy1/uv-index-site
+The key lives only in GitHub Actions, which is also the only place the CAMS
+fetcher runs — so CAMS is tested by dispatching the workflow, not from a laptop.
+That is deliberate: nobody needs a copy of the key locally.
 
 ## 2. Cloudflare D1 database — blocks deployment
 
