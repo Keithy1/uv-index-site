@@ -52,13 +52,21 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt
 
+      # A cache key may not contain a comma, and `dates` is comma-separated,
+      # so derive a safe key rather than interpolating the input directly.
+      - name: Cache key
+        id: cachekey
+        run: |
+          safe=$(printf '%s' "${{ inputs.dates }}" | tr ',' '_' | tr -cd 'A-Za-z0-9_.-')
+          echo "key=$safe" >> "$GITHUB_OUTPUT"
+
       # ARPANSA's yearly files never change once published, so caching them
       # turns a ~270 MB download into a few seconds on later runs.
       - name: Cache ARPANSA history
         uses: actions/cache@v4
         with:
           path: arpansa-cache
-          key: arpansa-history-v1-${{ inputs.dates }}
+          key: arpansa-history-v1-${{ steps.cachekey.outputs.key }}
           restore-keys: |
             arpansa-history-v1-
 
