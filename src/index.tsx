@@ -29,6 +29,9 @@ import * as arpansa from "./sources/arpansa";
 import { CityPage } from "./views/CityPage";
 import type { CityRow } from "./views/CountryPage";
 import { CountryPage } from "./views/CountryPage";
+import * as mapAu from "./lib/map-au";
+import * as mapUs from "./lib/map-us";
+import type { CountryMap } from "./views/CountryPage";
 import type { CountryHeadline } from "./views/HomePage";
 import { HomePage } from "./views/HomePage";
 
@@ -173,6 +176,50 @@ app.get("/api/health", async (c) => {
   return c.json({ healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources }, healthy ? 200 : 503);
 });
 
+
+/**
+ * Everything a country page needs that is not in the database.
+ *
+ * Keyed by country, and its absence is meaningful: a country with no entry has
+ * no page, and the route 404s rather than rendering another country's map and
+ * title. That is exactly what happened when /us/ first went live — it served
+ * "UV Index Australia" over the Australian outline, because the route matched
+ * any country while the template only knew one.
+ */
+const COUNTRY_PAGES: Record<string, {
+  map: CountryMap;
+  measured: boolean;
+  credit: "arpansa" | "epa";
+  cityPages: boolean;
+}> = {
+  au: {
+    map: {
+      width: mapAu.VIEW_WIDTH,
+      height: mapAu.VIEW_HEIGHT,
+      outlinePath: mapAu.OUTLINE_PATH,
+      project: mapAu.project,
+    },
+    measured: true,
+    credit: "arpansa",
+    cityPages: true,
+  },
+  us: {
+    map: {
+      width: mapUs.VIEW_WIDTH,
+      height: mapUs.VIEW_HEIGHT,
+      outlinePath: mapUs.OUTLINE_PATH,
+      project: mapUs.project,
+    },
+    // EPA publishes forecasts only; there is no measured US source, and the
+    // page must not imply one.
+    measured: false,
+    credit: "epa",
+    // US city pages are added only where Search Console shows real demand, so
+    // there is nothing to link to yet.
+    cityPages: false,
+  },
+};
+
 /** UTC window generous enough to contain any city's local day. */
 function dayWindow(now: Date): { from: string; to: string } {
   const iso = (d: Date) => d.toISOString().slice(0, 19) + "Z";
@@ -192,8 +239,14 @@ app.get("/:country/", async (c) => {
   const settings = countrySettings(country);
   if (!settings || settings.status !== "live") return c.notFound();
 
+  const page = COUNTRY_PAGES[country];
+  if (!page) return c.notFound();
+
   const now = new Date();
-  const cities = locationsIn(country).filter((l) => l.status === "live");
+  // A country with no published city pages still has cities worth tabulating;
+  // fall back to all of them rather than rendering an empty table.
+  const live = locationsIn(country).filter((l) => l.status === "live");
+  const cities = live.length > 0 ? live : locationsIn(country);
   const { from, to } = dayWindow(now);
   const data = await countryData(c.env.DB, cities.map((l) => l.id), from, to, now);
 
@@ -203,12 +256,14 @@ app.get("/:country/", async (c) => {
     const peaks = (row?.forecast ?? []).filter(
       (p) => localDateKey(p.validAt, location.tz) === today,
     );
+    const peak = peaks.length ? Math.max(...peaks.map((p) => p.uvi)) : null;
     return {
       location,
-      uvi: row?.latest?.uvi ?? null,
-      validAt: row?.latest?.validAt ?? null,
-      stale: row?.latest?.stale ?? false,
-      peak: peaks.length ? Math.max(...peaks.map((p) => p.uvi)) : null,
+      // Where there is no measured source, the headline figure IS the peak.
+      uvi: page.measured ? (row?.latest?.uvi ?? null) : peak,
+      validAt: page.measured ? (row?.latest?.validAt ?? null) : null,
+      stale: page.measured ? (row?.latest?.stale ?? false) : false,
+      peak,
     };
   });
 
@@ -223,6 +278,10 @@ app.get("/:country/", async (c) => {
       rows={rows}
       now={now}
       hasForecast={rows.some((r) => r.peak !== null)}
+      map={page.map}
+      measured={page.measured}
+      credit={page.credit}
+      cityPages={page.cityPages}
     />,
   );
 });
