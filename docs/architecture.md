@@ -33,12 +33,31 @@ Two things cannot move into the Worker:
 
 Both are *forecasts*, so a run arriving late changes nothing a visitor sees.
 
-**Why ARPANSA is not in Actions**, which is what the earlier plan assumed: GitHub's
-`schedule` trigger is explicitly best-effort. Reported delays run 3–10 minutes
-routinely and far longer under load; one published benchmark measured a median of
-26 minutes late, and a project polling on `*/5` observed a 30-minute gap with no
-runs at all. A UV site whose whole Australian proposition is a live measured
-reading cannot be built on that.
+**Why ARPANSA is not in Actions**, which is what the earlier plan assumed:
+GitHub's `schedule` trigger is explicitly best-effort, and we have measured
+exactly how best-effort on this very repository.
+
+The original `fetch-and-publish` workflow ran ARPANSA on `*/5 * * * *` from
+23 to 25 October 2026. Over a 43.9-hour window it should have fired 527 times.
+It fired **14**:
+
+| | Scheduled | Actual |
+|---|---|---|
+| Runs in 43.9 hours | 527 | 14 (**2.7%**) |
+| Mean gap | 5 min | **203 min** |
+| Shortest gap ever achieved | 5 min | 116 min |
+| Longest gap | 5 min | 292 min |
+
+Twelve of the thirteen gaps exceeded two hours. The feed was never fresher than
+roughly two hours old, and was routinely close to five hours stale — against a
+staleness rule that refuses to present anything older than 20 minutes as current.
+Australia would have shown "Live reading delayed" essentially always.
+
+This is far worse than the published benchmarks suggested (a median of 26 minutes
+late), and it is worth knowing why: GitHub de-prioritises high-frequency crons,
+and a new repository with little activity sits at the back of that queue. A UV
+site whose whole Australian proposition is a live measured reading cannot be
+built on this, at any cadence.
 
 ## Data flow
 
