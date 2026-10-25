@@ -126,18 +126,19 @@ export function describeCurve(points: readonly CurvePoint[]): string {
   if (visible.length === 0) return "No forecast available for today.";
 
   const peak = visible.reduce((a, b) => (b.uvi > a.uvi ? b : a));
+  const headline = `Peak ${formatUvi(peak.uvi)} at ${minutesToClock(peak.minutes)}, with cloud included.`;
+
+  // Deliberately no times here. This curve is cloud-adjusted, while the sun
+  // protection times above it are computed from the clear-sky forecast, so
+  // quoting a window in both places put two different answers to the same
+  // question on one page -- 12:46 pm here against 8:17 am there, for Perth on
+  // a cloudy day. The conservative clear-sky figure is the one that should be
+  // acted on, so it gets to be the only one.
   if (peak.uvi < PROTECTION_THRESHOLD) {
-    return `Peak ${formatUvi(peak.uvi)} at ${minutesToClock(peak.minutes)}; ` +
-      "below the level at which sun protection is usually advised.";
+    return `${headline} Cloud is forecast to keep UV below the level at which ` +
+      "sun protection is usually advised, but it can clear at any time.";
   }
-  const window = protectionWindow(points);
-  // No window means the forecast does not cover the whole daylight period, so
-  // the times are unknown rather than absent. Say that, rather than implying
-  // the day is safe.
-  const span = window
-    ? `protection needed from ${minutesToClock(window.start)} to ${minutesToClock(window.end)}.`
-    : "sun protection is needed, though the forecast does not yet cover the full day.";
-  return `Peak ${formatUvi(peak.uvi)} at ${minutesToClock(peak.minutes)}; ${span}`;
+  return headline;
 }
 
 /**

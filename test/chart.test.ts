@@ -87,11 +87,25 @@ describe("describeCurve", () => {
   it("gives the sentence that must sit beside the chart", () => {
     const text = describeCurve(bell(11));
     expect(text).toMatch(/^Peak 11\.0 at 12:00 pm/);
-    expect(text).toMatch(/protection needed from .* to .*\./);
+    expect(text).toMatch(/cloud included/);
   });
 
-  it("says plainly when protection is not needed", () => {
-    expect(describeCurve(bell(2))).toMatch(/below the level/);
+  it("quotes no protection times at all", () => {
+    // The chart is cloud-adjusted; the sun protection times on the page are
+    // computed from the clear-sky forecast. Quoting a window in both places
+    // put two different answers to the same question on one page. The
+    // conservative clear-sky figure is the one to act on, so it is the only
+    // one allowed to give times.
+    for (const peak of [2, 5, 11, 15]) {
+      expect(describeCurve(bell(peak)), String(peak)).not.toMatch(/protection needed from/);
+      expect(describeCurve(bell(peak)), String(peak)).not.toMatch(/to \d+:\d\d [ap]m/);
+    }
+  });
+
+  it("says when cloud is keeping UV down, without implying the day is safe", () => {
+    const text = describeCurve(bell(2));
+    expect(text).toMatch(/below the level/);
+    expect(text).toMatch(/can clear at any time/);
   });
 
   it("never returns an empty string, even with no data", () => {
