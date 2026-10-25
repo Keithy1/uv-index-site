@@ -11,7 +11,7 @@
 import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
-import { isProductionHost } from "./lib/host";
+import { isIndexable } from "./lib/host";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
@@ -47,7 +47,7 @@ const app = new Hono<{ Bindings: Env }>();
  */
 app.use("*", async (c, next) => {
   await next();
-  if (!isProductionHost(new URL(c.req.url).host)) {
+  if (!isIndexable(new URL(c.req.url).host, c.env.SITE_INDEXABLE)) {
     c.header("X-Robots-Tag", "noindex, nofollow");
   }
 });
@@ -232,10 +232,11 @@ app.get("/:country/:slug/", async (c) => {
 });
 
 app.get("/robots.txt", (c) => {
-  // A preview host disallows everything; see the noindex middleware above.
-  const production = isProductionHost(new URL(c.req.url).host);
+  // Disallow everything unless this is the real site AND the launch flag is
+  // on; see the noindex middleware above.
+  const indexable = isIndexable(new URL(c.req.url).host, c.env.SITE_INDEXABLE);
   const lines = (
-    production
+    indexable
       ? [
           "User-agent: *",
           "Disallow: /api/",
@@ -243,7 +244,7 @@ app.get("/robots.txt", (c) => {
           "Sitemap: https://uvatlas.com/sitemap.xml",
           "",
         ]
-      : ["# Preview deployment, not for indexing.", "User-agent: *", "Disallow: /", ""]
+      : ["# Not for indexing yet: the site is still being built.", "User-agent: *", "Disallow: /", ""]
   ).join("\n");
   c.header("Content-Type", "text/plain; charset=utf-8");
   c.header("Cache-Control", "public, max-age=86400");

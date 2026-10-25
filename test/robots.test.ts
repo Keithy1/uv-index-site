@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isProductionHost } from "../src/lib/host";
+import { isIndexable, isProductionHost } from "../src/lib/host";
 
 /**
  * A preview deployment serves the same pages as production from a public URL.
@@ -29,5 +29,21 @@ describe("isProductionHost", () => {
     expect(isProductionHost("notuvatlas.com")).toBe(false);
     expect(isProductionHost("uvatlas.co")).toBe(false);
     expect(isProductionHost("")).toBe(false);
+  });
+});
+
+describe("isIndexable", () => {
+  it("needs the real host AND the launch flag", () => {
+    expect(isIndexable("uvatlas.com", "true")).toBe(true);
+    expect(isIndexable("uvatlas.com", "false")).toBe(false);
+    expect(isIndexable("uvatlas.keithchester1.workers.dev", "true")).toBe(false);
+  });
+
+  it("fails closed on anything that is not exactly \"true\"", () => {
+    // This flag is only ever read in anger once, and the expensive mistake is
+    // the one that switches indexing on by accident.
+    for (const flag of [undefined, "", "1", "yes", "TRUE", "True", " true", "on"]) {
+      expect(isIndexable("uvatlas.com", flag), JSON.stringify(flag)).toBe(false);
+    }
   });
 });

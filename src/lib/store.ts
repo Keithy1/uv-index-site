@@ -12,6 +12,11 @@ import { toIsoUtc } from "./records";
 
 export interface Env {
   readonly DB: D1Database;
+  /**
+   * "true" once the site is finished and may be indexed. Anything else, unset
+   * included, means search engines are told to stay away. See lib/host.ts.
+   */
+  readonly SITE_INDEXABLE?: string;
 }
 
 /**

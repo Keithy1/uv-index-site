@@ -10,6 +10,30 @@
   "compatibility_date": "2026-10-20",
   "observability": { "enabled": true },
 
+  // Keep the workers.dev URL alongside the custom domain. Declaring `routes`
+  // turns it off by default, and it is useful as a second environment to check
+  // against -- it is also the one host where the noindex guard can be seen
+  // working regardless of the launch flag.
+  "workers_dev": true,
+
+  // The real domain. `custom_domain` makes Cloudflare create and manage the
+  // DNS record, so there is nothing to keep in step by hand.
+  "routes": [
+    { "pattern": "uvatlas.com", "custom_domain": true }
+  ],
+
+  "vars": {
+    // The launch switch. While this is anything other than "true", every
+    // response carries X-Robots-Tag: noindex and robots.txt disallows
+    // everything, even on uvatlas.com itself.
+    //
+    // It stays off until the site is finished. Google forming its first
+    // impression of the domain from a half-built site -- no home page, no
+    // guide, 404s where the internal links point -- is worse than not being
+    // indexed, and far slower to undo than it is to cause.
+    "SITE_INDEXABLE": "false"
+  },
+
   // ARPANSA measured readings, every 5 minutes. This is the only cron the Worker owns;
   // EPA (hourly) and CAMS (twice daily) are delay-tolerant and live in GitHub Actions.
   "triggers": {
