@@ -116,7 +116,9 @@ th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 thead th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;
 color:var(--muted);font-weight:600}
 tbody th{font-weight:400}
-td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.uvi{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.uvi b{font-variant-numeric:tabular-nums;font-size:1.02rem;min-width:2.1em;
+display:inline-block;text-align:right}
 td.t{color:var(--muted);font-size:.85rem;white-space:nowrap}
 tr.stale td{opacity:.62}
 .credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
@@ -138,6 +140,33 @@ font-size:.82rem;color:var(--muted)}
  * city connects the two. The cost is one CSS rule per city, which compresses
  * to almost nothing because the rules are near-identical.
  */
+/**
+ * A UV value with its band beside it.
+ *
+ * Every number carries its own band. A single "Band" column had to describe
+ * one of the several numbers in the row, and it described a different one in
+ * each country -- UV now in Australia, today's peak in the United States --
+ * so the same heading meant two different things depending on the page.
+ */
+function Uvi({ uvi }: { uvi: number | null }) {
+  if (uvi === null) return <span class="muted small">—</span>;
+  const band = bandFor(uvi);
+  return (
+    <span class="uvi">
+      <b>{formatUvi(uvi)}</b>
+      <span class="band" style={`background:${band.bg};color:${band.fg}`}>{band.name}</span>
+    </span>
+  );
+}
+
+function UviCell({ uvi }: { uvi: number | null }) {
+  return (
+    <td>
+      <Uvi uvi={uvi} />
+    </td>
+  );
+}
+
 function MarkerLayer({
   rows,
   map,
@@ -390,74 +419,48 @@ export function CountryPage(view: CountryView) {
         <thead>
           <tr>
             <th scope="col">City</th>
-            <th scope="col" style="text-align:right">{view.measured ? "UV now" : "Peak today"}</th>
-            <th scope="col">Band</th>
-            {view.measured && view.hasForecast && (
-              <th scope="col" class="hide" style="text-align:right">Peak today</th>
-            )}
-            <th scope="col" style="text-align:right">Tomorrow</th>
-            <th scope="col" class="hide">Tomorrow's band</th>
+            {view.measured && <th scope="col">UV now</th>}
+            {/* "Peak today" only collapses on a phone where there is also a
+                "UV now" column to carry today. On a forecast-only country it
+                IS today's figure, and the table is sorted by it -- hiding it
+                left the US page showing tomorrow alone, in what looked like
+                a random order. */}
+            <th scope="col" class={view.measured ? "hide" : undefined}>Peak today</th>
+            <th scope="col">Tomorrow</th>
             {view.measured && <th scope="col" class="hide">Measured</th>}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
-            const b = r.uvi !== null ? bandFor(r.uvi) : null;
-            return (
-              <tr key={r.location.id} class={r.stale ? "stale" : undefined}>
-                <th scope="row">
-                  {/* Only link where a city page actually exists; a link to a
-                      404 is worse than no link. */}
-                  {view.cityPages ? (
-                    <a href={`/${r.location.country}/${r.location.slug}/`}>{r.location.name}</a>
-                  ) : (
-                    r.location.name
-                  )}
-                </th>
-                <td class="n">{r.uvi !== null ? formatUvi(r.uvi) : "—"}</td>
-                <td>
-                  {b ? (
-                    // Number and word both present: colour never carries meaning alone.
-                    <span class="band" style={`background:${b.bg};color:${b.fg}`}>{b.name}</span>
-                  ) : (
-                    <span class="muted small">no data</span>
-                  )}
-                </td>
-                {view.measured && view.hasForecast && (
-                  <td class="n hide">{r.peak !== null ? formatUvi(r.peak) : "—"}</td>
+          {rows.map((r) => (
+            <tr key={r.location.id} class={r.stale ? "stale" : undefined}>
+              <th scope="row">
+                {/* Only link where a city page actually exists; a link to a
+                    404 is worse than no link. */}
+                {view.cityPages ? (
+                  <a href={`/${r.location.country}/${r.location.slug}/`}>{r.location.name}</a>
+                ) : (
+                  r.location.name
                 )}
-                <td class="n">{r.tomorrow !== null ? formatUvi(r.tomorrow) : "—"}</td>
-                <td class="hide">
-                  {r.tomorrow !== null ? (
-                    (() => {
-                      const tb = bandFor(r.tomorrow);
-                      return (
-                        <span class="band" style={`background:${tb.bg};color:${tb.fg}`}>
-                          {tb.name}
-                        </span>
-                      );
-                    })()
-                  ) : (
-                    <span class="muted small">no forecast</span>
-                  )}
+              </th>
+              {view.measured && <UviCell uvi={r.uvi} />}
+              <td class={view.measured ? "hide" : undefined}><Uvi uvi={r.peak} /></td>
+              <td><Uvi uvi={r.tomorrow} /></td>
+              {view.measured && (
+                <td class="t hide">
+                  {r.validAt ? localTimeWithZone(r.validAt, r.location.tz) : "—"}
+                  {r.stale ? " (delayed)" : ""}
                 </td>
-                {view.measured && (
-                  <td class="t hide">
-                    {r.validAt ? localTimeWithZone(r.validAt, r.location.tz) : "—"}
-                    {r.stale ? " (delayed)" : ""}
-                  </td>
-                )}
-              </tr>
-            );
-          })}
+              )}
+            </tr>
+          ))}
         </tbody>
       </table>
       <p class="small muted">
         {view.measured
           ? "Sorted by the current reading, highest first. Times are local to each city."
           : "Sorted by today's forecast peak, highest first."}{" "}
-        Tomorrow's figures are the forecast peak for each city's own day; a dash
-        means the forecast does not yet cover it.
+        Every figure carries its own band. Peak figures are the highest the UV index
+        reaches in that city's own day; a dash means the forecast does not cover it.
       </p>
 
       <p class="small">
