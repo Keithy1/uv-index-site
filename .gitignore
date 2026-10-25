@@ -7,8 +7,14 @@ node_modules/
 .wrangler/
 dist/
 
-# Fetched data never belongs in the repository
-data/
+# Fetched data never belongs in the repository. Note this is deliberately NOT
+# "data/": data/stations.json is the station registry that both TypeScript and
+# Python read, and it must be committed. A blanket "data/" ignore meant the
+# registry was never added, the Worker kept working because esbuild inlines
+# the import at build time, and only CI noticed.
+data/*.jsonl
+data/latest.json
+data/health.json
 
 # Secrets. SECRETS.local.md holds API keys in plain text and must never be
 # tracked: this repository is public. A pre-commit hook enforces it as well.
