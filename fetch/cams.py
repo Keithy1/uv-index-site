@@ -135,6 +135,105 @@ def retrieve(request: dict, target: str) -> str:
     return target
 
 
+# Confirmed from the probe download on 25 October 2026:
+#   * the file is GRIB edition 1 from ECMWF, read with cfgrib;
+#   * uvbed is paramId 214002 and uvbedcs 214003;
+#   * GRIB_stepType is "instant", so these are instantaneous RATES, not doses
+#     accumulated over the hour. That is what makes UVI = rate * 40 valid;
+#   * the grid is regular lat/lon at 0.4 degrees;
+#   * missing points carry 3.4028234663852886e+38, which cfgrib turns into NaN.
+GRIB_MISSING = 3.4028234663852886e38
+
+# All-sky (cloud-adjusted) is what a visitor should see. The clear-sky twin is
+# carried alongside it so a page can say how much cloud is taking off the peak.
+ALL_SKY = "uvbed"
+CLEAR_SKY = "uvbedcs"
+
+
+def _is_missing(value: float) -> bool:
+    return (
+        value != value  # NaN
+        or value >= GRIB_MISSING * 0.99
+        or value < 0
+    )
+
+
+def parse_grib(
+    path: str,
+    stations: dict[str, tuple[float, float, str]] | None = None,
+    fetched_at: datetime | None = None,
+) -> list[Record]:
+    """Turn a CAMS GRIB file into forecast Records, one per station per hour.
+
+    Nearest grid point per station: at 0.4 degrees a cell is about 44 km, so the
+    nearest point is the right choice for a city, and interpolating between
+    cells would invent precision the model does not have.
+
+    `valid_time` is used rather than `time + step` because cfgrib has already
+    computed it, and it is unambiguously UTC.
+    """
+    import xarray as xr
+
+    stations = stations if stations is not None else AU_STATIONS
+    fetched = fetched_at or utc_now()
+    records: list[Record] = []
+
+    ds = xr.open_dataset(path, engine="cfgrib")
+    try:
+        if ALL_SKY not in ds.data_vars:
+            raise ValueError(
+                f"{path} has no {ALL_SKY} variable; found {list(ds.data_vars)}"
+            )
+
+        issued_at = _to_utc(ds["time"].values)
+        valid_times = [_to_utc(v) for v in ds["valid_time"].values]
+
+        for key, (lat, lon, _tz) in stations.items():
+            point = ds.sel(latitude=lat, longitude=lon, method="nearest")
+            all_sky = [float(v) for v in point[ALL_SKY].values.ravel()]
+            clear = (
+                [float(v) for v in point[CLEAR_SKY].values.ravel()]
+                if CLEAR_SKY in ds.data_vars
+                else [float("nan")] * len(all_sky)
+            )
+
+            for valid_at, rate, rate_cs in zip(valid_times, all_sky, clear):
+                if _is_missing(rate):
+                    continue
+                uvi = uvi_from_uvbed(rate)
+                if not check_uvi(uvi):
+                    continue
+                extra = None
+                if not _is_missing(rate_cs):
+                    clear_uvi = uvi_from_uvbed(rate_cs)
+                    if check_uvi(clear_uvi):
+                        extra = {"clear_sky_uvi": round(clear_uvi, 2)}
+                records.append(
+                    Record(
+                        source="cams",
+                        kind="forecast",
+                        location=key,
+                        uvi=round(uvi, 2),
+                        valid_at=valid_at,
+                        issued_at=issued_at,
+                        fetched_at=fetched,
+                        extra=extra,
+                    )
+                )
+    finally:
+        ds.close()
+
+    return records
+
+
+def _to_utc(value) -> datetime:
+    """numpy datetime64 -> timezone-aware UTC datetime."""
+    import numpy as np
+
+    stamp = np.datetime64(value, "s").astype("int64")
+    return datetime.fromtimestamp(int(stamp), tz=timezone.utc)
+
+
 def run() -> list[Record]:
     """Not usable yet: nothing reads the downloaded file into records.
 

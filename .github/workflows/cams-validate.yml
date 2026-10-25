@@ -1,0 +1,60 @@
+name: cams-validate
+
+# Compares a CAMS forecast against what ARPANSA actually measured, hour by hour.
+# This is the check that decides whether a CAMS-derived UV index may be
+# published at all. It answers two separate questions:
+#
+#   1. Is UVI = rate x 40 right? Fitted on cloudless hours only, so a cloud
+#      error cannot be mistaken for a units error. The GRIB carries no units,
+#      so this is the only evidence we have.
+#   2. How accurate is the forecast? Bias and mean absolute error across all
+#      daylight hours. This is the figure the methods page should quote.
+#
+# 2025 is the most recent complete year of ARPANSA history on data.gov.au.
+
+on:
+  workflow_dispatch:
+    inputs:
+      station:
+        description: "ARPANSA station"
+        required: true
+        default: "au-syd"
+        type: choice
+        options:
+          [au-adl, au-ali, au-bri, au-can, au-dar, au-emd, au-gco,
+           au-kin, au-mel, au-new, au-per, au-syd, au-tow]
+      date:
+        description: "First day (YYYY-MM-DD). 2025 has full measured history."
+        required: true
+        default: "2025-10-20"
+      days:
+        description: "How many days"
+        required: true
+        default: "7"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Validate
+        run: |
+          python -m fetch.cams_validate \
+            --station "${{ inputs.station }}" \
+            --date "${{ inputs.date }}" \
+            --days "${{ inputs.days }}"
