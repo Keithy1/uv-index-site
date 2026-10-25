@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 def main(out_dir: str = "data") -> None:
     health: dict = {"status": "ok", "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "sources": {}}
-    for name in ("arpansa", "epa", "cams"):
+    for name in ("epa", "cams"):
         path = os.path.join(out_dir, f"{name}.jsonl")
         if os.path.exists(path):
             health["sources"][name] = {

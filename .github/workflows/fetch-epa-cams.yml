@@ -1,0 +1,60 @@
+name: fetch-epa-cams
+
+# The two sources that cannot run inside a Cloudflare Worker on the free plan:
+#   * EPA needs ~100 subrequests per run and the free limit is 50;
+#   * CAMS ships GRIB/netCDF that needs real numerical processing.
+# Both are forecasts, so a late run costs nothing. ARPANSA — the one source
+# where minutes matter — is fetched by the Worker's own cron instead, because
+# GitHub's scheduler is best-effort and routinely runs 10-30 minutes late.
+#
+# DISABLED ON A SCHEDULE FOR NOW: the step that writes these records into D1 is
+# not built yet (see docs/architecture.md, "What is not built"). Running on a
+# timer before then would just burn minutes, so it is manual-only until the
+# writer lands, at which point the `schedule` block below is uncommented.
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "23 * * * *"   # EPA, hourly, off the top of the hour (less queueing)
+  #   - cron: "40 1,13 * * *" # CAMS, after the 00Z and 12Z runs publish
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fetch-epa-cams
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests
+        run: python -m unittest discover -s fetch/tests -t . -v
+
+      - name: Fetch EPA (forecast, US)
+        run: python -m fetch.main --source epa --out data
+
+      - name: Fetch CAMS (forecast)
+        if: env.ADS_API_KEY != ''
+        run: python -m fetch.main --source cams --out data
+
+      - name: Health file
+        run: python fetch/health.py data
+
+      # Kept as an artifact so a run can be inspected before the D1 writer
+      # exists. Data is never committed to the repository.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uv-data
+          path: data/
+          retention-days: 7

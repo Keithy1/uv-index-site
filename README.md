@@ -1,48 +1,62 @@
-# uvatlas — UV Index site (AU + US)
+# uvatlas
 
-Live UV index for Australia and the United States: measured readings (ARPANSA) and
-forecasts (EPA, CAMS), server-generated static pages served from Cloudflare at
-**uvatlas.com** for **$0/month** (free tiers only; secrets never touch this repo).
+Live UV index for Australia and the United States, at **uvatlas.com**.
+Measured readings from ARPANSA, forecasts from EPA and Copernicus CAMS,
+server-rendered at the edge for **$0 a month** — the domain is the only cost.
 
 ## How it works
 
 ```
-free data sources            GitHub Actions (scheduled)              Cloudflare free tier
-ARPANSA (measured, AU)  ─┐
-EPA Envirofacts (US)    ─┼─► Python fetchers (fetch/) ─► JSON/JSONL ─► R2 public bucket
-CAMS/ADS (forecast)     ─┘        │                            └─► uvatlas.com (edge cached)
-                                  └─► page generator (build/, Phase 2) ─► static HTML
+ARPANSA XML ──► Worker cron (every 5 min) ──┐
+                                            ├─► D1 ──► Worker renders HTML ──► edge cache
+EPA JSON    ──► GitHub Actions (hourly) ────┤
+CAMS netCDF ──► GitHub Actions (2x daily) ──┘
 ```
 
-- **Scheduler**: GitHub Actions, every 5 minutes (ARPANSA), hourly (EPA), twice daily (CAMS).
-- **Storage**: Cloudflare R2 free tier (10 GB, 10M reads/mo, zero egress). No database.
-- **Serving**: full HTML pages generated at fetch time → R2 → edge cache.
-  SEO rules from the design doc (one URL per page, canonicals, sitemaps) are unchanged.
-- **Micro Worker** (free tier) will provide `/api/where` (location hint) and `/api/health`.
+The split is forced by Cloudflare's free-plan limits: EPA needs more subrequests
+than one invocation allows and CAMS needs netCDF processing, while both are
+forecasts and tolerate a late run. ARPANSA stays on the Worker's own cron because
+GitHub's scheduler is best-effort and routinely runs tens of minutes late, and a
+live measured reading is the one thing that cannot be late.
 
-## Repository secrets (GitHub → Settings → Secrets and variables → Actions)
+Pages only ever read from D1, so a broken source can make the data older but
+never make a page slow. Everything is full HTML from the server: no client
+framework, under 100 KB a page, under 5 KB of JavaScript.
 
-| Secret | Purpose |
-|---|---|
-| `CF_API_TOKEN` | Cloudflare API token (R2 Storage Edit + Workers Scripts Edit + Account Settings Read) |
-| `CF_ACCOUNT_ID` | Cloudflare account ID |
-| `ADS_API_KEY` | CAMS Atmosphere Data Store key, format `UID:API_KEY` |
-
-None of these are required to build or test; fetchers and tests run without them.
-
-## Layout
-
-- `fetch/` — data adapters (fetch → parse → check → common record) + CLI + tests
-- `build/` — page generator (Phase 2)
-- `site/` — templates, CSS, SVG map build (Phase 2)
-- `docs/site-notes.md` — verified endpoints, licences, architecture notes
-- `.github/workflows/fetch-and-publish.yml` — scheduled fetch + publish
+**Read `docs/architecture.md` first.** `CLAUDE.md` has the rules that are easy to
+break by accident, and `docs/setup.md` lists the accounts still needed.
 
 ## Develop
 
 ```sh
-python -m unittest discover -s fetch/tests -v   # all adapter tests
-python fetch/main.py --source arpansa --out data   # one-off fetch
+npm ci
+npm run db:init:local   # apply schema.sql to a local D1
+npm run dev             # http://127.0.0.1:8787
+
+npm test                # 46 tests, no network
+npm run typecheck
+python -m unittest discover -s fetch/tests -t .
 ```
 
-Data is never committed to git (`.gitignore`); it flows straight to R2.
+To run the scheduled handler locally:
+`curl http://127.0.0.1:8787/cdn-cgi/handler/scheduled`
+
+## Layout
+
+| Path | What |
+|---|---|
+| `src/index.tsx` | Worker routes and the cron handler |
+| `src/lib/` | Locations registry, UV bands, D1 access |
+| `src/sources/` | One adapter per source |
+| `src/views/` | Server-rendered templates |
+| `fetch/` | Python adapters for sources a Worker cannot run |
+| `schema.sql` | D1 schema |
+
+## Attribution
+
+UV observations courtesy of ARPANSA. © Commonwealth of Australia as represented
+by the Australian Radiation Protection and Nuclear Safety Agency (ARPANSA).
+US forecasts: US Environmental Protection Agency. Forecasts generated using
+Copernicus Atmosphere Monitoring Service information.
+
+Not a substitute for medical advice.

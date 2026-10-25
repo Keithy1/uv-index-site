@@ -1,8 +1,13 @@
 """CLI: run the adapters and write JSONL history + a latest snapshot.
 
+These are the sources that cannot run inside a Cloudflare Worker on the free
+plan: EPA needs 100 subrequests (the limit is 50) and CAMS needs netCDF
+processing. ARPANSA is fetched by the Worker's own cron instead, so it is
+deliberately absent here -- see src/sources/arpansa.ts.
+
 Usage:
-    python fetch/main.py --source arpansa --out data
-    python fetch/main.py --source all --out data
+    python -m fetch.main --source epa --out data
+    python -m fetch.main --source all --out data
 """
 from __future__ import annotations
 
@@ -12,9 +17,9 @@ import os
 import sys
 from datetime import datetime, timezone
 
-from . import arpansa, cams, epa
+from . import cams, epa
 
-SOURCES = {"arpansa": arpansa.run, "epa": epa.run, "cams": cams.run}
+SOURCES = {"epa": epa.run, "cams": cams.run}
 
 
 def write_records(out_dir: str, source: str, records: list) -> int:

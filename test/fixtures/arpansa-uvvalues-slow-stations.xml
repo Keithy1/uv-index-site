@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<stations>
+  <location id="Adelaide">
+    <name>adl</name>
+    <index>0.0</index>
+    <time>10:29 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 12:59</utcdatetime>
+    <status>174 Mins Slow</status>
+  </location>
+  <location id="Alice Springs">
+    <name>ali</name>
+    <index>0.0</index>
+    <time>1:21 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:51</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Brisbane">
+    <name>bri</name>
+    <index>0.0</index>
+    <time>10:59 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 12:59</utcdatetime>
+    <status>174 Mins Slow</status>
+  </location>
+  <location id="Canberra">
+    <name>can</name>
+    <index>0.0</index>
+    <time>11:00 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 13:00</utcdatetime>
+    <status>173 Mins Slow</status>
+  </location>
+  <location id="Casey">
+    <name>cas</name>
+    <index>0.0</index>
+    <time>11:52 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Darwin">
+    <name>dar</name>
+    <index>0.0</index>
+    <time>1:22 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Davis">
+    <name>dav</name>
+    <index>0.0</index>
+    <time>10:52 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Emerald">
+    <name>emd</name>
+    <index>0.0</index>
+    <time>1:52 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Gold Coast">
+    <name>gco</name>
+    <index>0.0</index>
+    <time>1:52 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Kingston">
+    <name>kin</name>
+    <index>0.0</index>
+    <time>1:52 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Mawson">
+    <name>maw</name>
+    <index>0.0</index>
+    <time>8:52 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Melbourne">
+    <name>mel</name>
+    <index>0.0</index>
+    <time>11:00 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 13:00</utcdatetime>
+    <status>173 Mins Slow</status>
+  </location>
+  <location id="Newcastle">
+    <name>new</name>
+    <index>0.0</index>
+    <time>10:59 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 12:59</utcdatetime>
+    <status>174 Mins Slow</status>
+  </location>
+  <location id="Perth">
+    <name>per</name>
+    <index>0.0</index>
+    <time>11:52 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+  <location id="Sydney">
+    <name>syd</name>
+    <index>0.0</index>
+    <time>10:59 PM</time>
+    <date>25/10/2026</date>
+    <fulldate>Sunday, 25 October 2026</fulldate>
+    <utcdatetime>2026/10/25 12:59</utcdatetime>
+    <status>174 Mins Slow</status>
+  </location>
+  <location id="Townsville">
+    <name>tow</name>
+    <index>0.0</index>
+    <time>1:52 AM</time>
+    <date>26/10/2026</date>
+    <fulldate>Monday, 26 October 2026</fulldate>
+    <utcdatetime>2026/10/25 15:52</utcdatetime>
+    <status>ok</status>
+  </location>
+</stations>

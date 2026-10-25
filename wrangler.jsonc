@@ -1,0 +1,27 @@
+{
+  // uvatlas.com — Cloudflare Workers FREE plan only. Nothing here may require Workers Paid.
+  // Free-plan constraints that shape this config:
+  //   - 10 ms CPU per invocation (fetch/D1 wait time does not count)
+  //   - 50 subrequests per invocation  -> EPA's 100 calls cannot run here; it runs in GitHub Actions
+  //   - 5 Cron Triggers per account    -> we spend exactly one, on ARPANSA
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "uvatlas",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-10-20",
+  "observability": { "enabled": true },
+
+  // ARPANSA measured readings, every 5 minutes. This is the only cron the Worker owns;
+  // EPA (hourly) and CAMS (twice daily) are delay-tolerant and live in GitHub Actions.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "uvatlas",
+      // Filled in by `wrangler d1 create uvatlas` — see docs/setup.md
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ]
+}

@@ -1,3 +1,10 @@
+> **Superseded in part.** This file is the research record from 23 October 2026.
+> The architecture and the decisions taken on 25 October 2026 are in
+> `architecture.md`, which overrides the "Zero-cost architecture" section below
+> (ARPANSA moved from GitHub Actions to a Worker cron, and storage is D1 rather
+> than JSON files in R2). Licences are in `licences.md`. The verified endpoint
+> and format notes here are still accurate and useful.
+
 # UV Index Site — Research Notes (23 Oct 2026)
 
 Source design doc: D:\keith\Documents\CODING PROJECTS\SITE BUILD RESEARCH\UV-Index-Site-Technical-Design.docx

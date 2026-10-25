@@ -1,9 +1,24 @@
+# Python
 __pycache__/
 *.pyc
+
+# Node / Worker
+node_modules/
+.wrangler/
+dist/
+
+# Fetched data never belongs in the repository
 data/
+
+# Secrets
 .env
 .venv/
 .npm-cache/
-.DS_Store
 .git-creds
 .git-credentials
+
+# The design and research documents stay local: this repository is public and
+# they contain the commercial strategy. docs/ carries what the build needs.
+*.docx
+
+.DS_Store

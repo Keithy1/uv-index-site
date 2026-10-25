@@ -1,0 +1,11 @@
+{
+  // Tests run in Node, so they get Node's types and NOT the Workers types:
+  // the two disagree about built-ins such as URL. Worker source is still
+  // checked against the Workers runtime by tsconfig.json, so a stray
+  // `import "node:fs"` in src/ is caught there.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["test", "vitest.config.ts"]
+}

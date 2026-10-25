@@ -33,9 +33,9 @@ AU_STATIONS: dict[str, tuple[float, float, str]] = {
     "au-bri": (-27.47, 153.03, "Australia/Brisbane"),      # Brisbane
     "au-can": (-35.28, 149.13, "Australia/Sydney"),        # Canberra
     "au-dar": (-12.46, 130.84, "Australia/Darwin"),        # Darwin
-    "au-eme": (-23.53, 148.16, "Australia/Brisbane"),      # Emerald (Qld time)
-    "au-gld": (-28.02, 153.40, "Australia/Brisbane"),      # Gold Coast
-    "au-hob": (-42.99, 147.29, "Australia/Hobart"),        # Hobart (Kingston stn)
+    "au-emd": (-23.53, 148.16, "Australia/Brisbane"),      # Emerald (Qld time)
+    "au-gco": (-28.02, 153.40, "Australia/Brisbane"),      # Gold Coast
+    "au-kin": (-42.98, 147.30, "Australia/Hobart"),        # Hobart (Kingston stn)
     "au-mel": (-37.81, 144.96, "Australia/Melbourne"),     # Melbourne
     "au-new": (-32.93, 151.78, "Australia/Sydney"),        # Newcastle
     "au-per": (-31.95, 115.86, "Australia/Perth"),         # Perth

@@ -1,0 +1,72 @@
+# uvatlas — working notes for Claude
+
+Live UV index for Australia and the United States, at **uvatlas.com**.
+Read `docs/architecture.md` before changing anything structural.
+
+## The two constraints that decide almost everything
+
+1. **$0 a month.** The domain is the only cost. Everything runs on free tiers:
+   Cloudflare Workers Free, D1 Free, GitHub Actions (free and unlimited because
+   the repository is public). Never introduce a paid plan, a paid API, or a
+   service with a trial that later bills. If a feature seems to need one, say so
+   rather than adding it.
+2. **Every data source must be free and licensed for commercial use**, because
+   the site will carry ads later. This rules out Open-Meteo's free tier, which is
+   non-commercial only. See `docs/licences.md`.
+
+## Commands
+
+```sh
+npm test              # vitest, 46 tests, no network
+npm run typecheck     # both tsconfigs
+npm run dev           # wrangler dev on :8787
+npm run db:init:local # apply schema.sql to the local D1
+python -m unittest discover -s fetch/tests -t .   # the Python fetchers
+```
+
+Before committing: `npm run typecheck && npm test` and the Python suite.
+CI additionally runs `wrangler deploy --dry-run`, which catches code that
+typechecks but will not bundle for workerd.
+
+To exercise the cron locally, start `npm run dev` and
+`curl http://127.0.0.1:8787/cdn-cgi/handler/scheduled`.
+
+## Where things live
+
+| Path | What |
+|---|---|
+| `src/index.tsx` | Worker: routes and the scheduled handler |
+| `src/lib/locations.ts` | **Single source of truth** for cities, zones, station codes |
+| `src/lib/uv.ts` | WHO bands and the rounding rule |
+| `src/lib/store.ts` | Everything that touches D1, including the staleness rule |
+| `src/sources/` | One adapter per source: fetch, parse, check |
+| `src/views/` | Server-rendered templates (Hono JSX) |
+| `fetch/` | Python adapters for the sources a Worker cannot run (EPA, CAMS) |
+| `schema.sql` | D1 schema. There is no `locations` table, on purpose |
+
+## Rules that are easy to break by accident
+
+- **Times are ISO 8601 UTC strings everywhere**, converted to local time only at
+  render time via a location's IANA zone. Queensland, the NT and WA have no
+  daylight saving while Sydney, Adelaide and Hobart do, so a hard-coded offset is
+  always a bug. Never use `new Date("2026/10/23 12:48")` on feed text — JavaScript
+  reads that as local time.
+- **`Number("")` is `0`, and `0` is a valid night-time UV reading.** Always check
+  that a field contains digits before converting it, or missing data becomes a
+  plausible-looking zero.
+- **A band comes from the reading rounded half-up**, the displayed value from
+  `formatUvi` (one decimal). 2.4 is Low, 2.5 is Moderate.
+- **ARPANSA's `<status>` is not a pass/fail flag.** It carries text like
+  `"174 Mins Slow"`, and on an ordinary day six of the thirteen stations say so at
+  once. Never drop a reading for this; store it and let the staleness rule decide
+  whether it may be shown as current.
+- **No template may show a reading without its credit.** The credit belongs in
+  the same component as the number, so the two cannot be separated.
+- **Ads stay off** in `COUNTRIES` until the licence position for that country
+  allows them. Australia needs ARPANSA's written authorisation. A test asserts this.
+
+## House style
+
+Full HTML from the server, one URL per page, no client framework, under 100 KB a
+page and under 5 KB of JavaScript. Comments explain *why*, especially where a
+rule exists because a source behaved unexpectedly.

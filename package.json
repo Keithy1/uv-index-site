@@ -1,0 +1,32 @@
+{
+  "name": "uvatlas",
+  "private": true,
+  "type": "module",
+  "description": "UV Index site for Australia and the United States — uvatlas.com",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "db:init:local": "wrangler d1 execute uvatlas --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute uvatlas --remote --file=./schema.sql"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.152.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
+    "workerd@1.20260815.1": true,
+    "workerd@1.20261019.1": true
+  },
+  "main": "src/index.tsx"
+}
