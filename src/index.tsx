@@ -29,7 +29,8 @@ import * as arpansa from "./sources/arpansa";
 import { CityPage } from "./views/CityPage";
 import type { CityRow } from "./views/CountryPage";
 import { CountryPage } from "./views/CountryPage";
-import { Preview } from "./views/Preview";
+import type { CountryHeadline } from "./views/HomePage";
+import { HomePage } from "./views/HomePage";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -66,13 +67,60 @@ const HEALTH_LIMITS_MS: Record<string, number> = {
   cams: 6 * 60 * 60 * 1000,
 };
 
+/**
+ * The home page.
+ *
+ * Identical for every visitor and cached, deliberately: Google warns that
+ * pages varying by location may not be crawled completely, and Googlebot
+ * crawls mostly from US addresses. The location hint is a client-side banner
+ * on top of this one cached document.
+ */
 app.get("/", async (c) => {
   const now = new Date();
-  const latest = await latestMeasured(c.env.DB, now);
-  // Cache for the Australian refresh period: the cron writes every 5 minutes,
-  // so a page older than that has nothing new to say.
+  const { from, to } = dayWindow(now);
+  const live = liveCountries();
+
+  const headlines: CountryHeadline[] = [];
+  for (const country of live) {
+    const cities = locationsIn(country.code).filter((l) => l.status === "live");
+    // The US publishes no city pages yet, so fall back to every known city
+    // rather than showing the country as having no data at all.
+    const pool = cities.length > 0 ? cities : locationsIn(country.code);
+    const data = await countryData(c.env.DB, pool.map((l) => l.id), from, to, now);
+
+    let best: { uvi: number; location: (typeof pool)[number]; forecast: boolean } | null = null;
+    for (const location of pool) {
+      const row = data.get(location.id);
+      const measured = row?.latest && !row.latest.stale ? row.latest.uvi : null;
+      const today = localDateKey(now.toISOString(), location.tz);
+      const peaks = (row?.forecast ?? []).filter(
+        (pt) => localDateKey(pt.validAt, location.tz) === today,
+      );
+      const forecastPeak = peaks.length ? Math.max(...peaks.map((pt) => pt.uvi)) : null;
+
+      // Prefer a live measurement; fall back to today's forecast peak, and say
+      // which it is on the page rather than passing one off as the other.
+      const uvi = measured ?? forecastPeak;
+      if (uvi === null) continue;
+      if (!best || uvi > best.uvi) {
+        best = { uvi, location, forecast: measured === null };
+      }
+    }
+
+    headlines.push({
+      country,
+      uvi: best?.uvi ?? null,
+      cityName: best?.location.name ?? null,
+      citySlug: best?.location.slug ?? null,
+      forecast: best?.forecast ?? false,
+      // New Zealand is borderline tappable at this scale; a marker keeps every
+      // served country reachable by thumb.
+      marker: best ? { lat: best.location.lat, lon: best.location.lon } : null,
+    });
+  }
+
   c.header("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
-  return c.html(<Preview latest={latest} generatedAt={now} />);
+  return c.html(<HomePage headlines={headlines} now={now} />);
 });
 
 /**
