@@ -72,6 +72,25 @@ gh secret set CLOUDFLARE_ACCOUNT_ID --repo Keithy1/uv-index-site
 
 Your account ID is on the right of the Cloudflare dashboard home page.
 
+## 3b. Turn on "Always Use HTTPS" — NOT DONE
+
+Checked 25 October 2026: `http://uvatlas.com/au/` returns 200 over plain HTTP
+rather than redirecting. Both schemes therefore serve the same pages, which is
+a duplicate-URL problem as well as a privacy one.
+
+Cloudflare dashboard → **uvatlas.com** → **SSL/TLS** → **Edge Certificates** →
+**Always Use HTTPS** → on.
+
+This is deliberately not done in the Worker. The edge handles it before the
+Worker runs, and a Worker-side scheme redirect is a loop waiting to happen: the
+Worker does not reliably see the scheme the visitor used. An earlier attempt
+sent a plain-http *local* request to `https://uvatlas.com` for exactly that
+reason.
+
+Everything else canonical is already handled in code and verified live: `/au`
+to `/au/`, `/AU/Perth` to `/au/perth/`, and `www.uvatlas.com` to the bare
+domain — each in a single hop, with no redirect chains and no loops.
+
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
 ARPANSA's terms allow free use of the real-time feed with credit, but

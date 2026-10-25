@@ -12,9 +12,9 @@ import type { Child } from "hono/jsx";
 
 import { COUNTRIES, liveCountries } from "../lib/locations";
 import type { CountryCode } from "../lib/locations";
+import { ORIGIN, SITE } from "../lib/urls";
 
-export const SITE = "uvatlas";
-export const ORIGIN = "https://uvatlas.com";
+export { ORIGIN, SITE } from "../lib/urls";
 
 interface Props {
   readonly title: string;

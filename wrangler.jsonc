@@ -19,7 +19,12 @@
   // The real domain. `custom_domain` makes Cloudflare create and manage the
   // DNS record, so there is nothing to keep in step by hand.
   "routes": [
-    { "pattern": "uvatlas.com", "custom_domain": true }
+    { "pattern": "uvatlas.com", "custom_domain": true },
+    // www exists only to be redirected to the bare domain by the Worker. It
+    // has to be routed for that redirect to happen at all -- an unrouted www
+    // simply fails to resolve, which looks like a broken site rather than a
+    // canonical one.
+    { "pattern": "www.uvatlas.com", "custom_domain": true }
   ],
 
   "vars": {

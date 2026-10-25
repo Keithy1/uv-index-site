@@ -12,6 +12,13 @@ import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
 import { isIndexable } from "./lib/host";
+import {
+  countrySitemap,
+  pagesSitemap,
+  sitemapCountries,
+  sitemapIndex,
+} from "./lib/sitemap";
+import { canonicalRedirect } from "./lib/urls";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
@@ -52,6 +59,18 @@ const app = new Hono<{ Bindings: Env }>();
  * Belt and braces, because either alone has failed for people before: a header
  * on every response, and a robots.txt that disallows everything.
  */
+/**
+ * One URL per page: redirect anything else before doing any work.
+ *
+ * First in the chain on purpose. A redirect should not cost a database query
+ * or a render, and a 301 that arrives after the page body would be a bug.
+ */
+app.use("*", async (c, next) => {
+  const target = canonicalRedirect(c.req.url);
+  if (target) return c.redirect(target, 301);
+  await next();
+});
+
 app.use("*", async (c, next) => {
   await next();
   if (!isIndexable(new URL(c.req.url).host, c.env.SITE_INDEXABLE)) {
@@ -394,6 +413,38 @@ app.get("/:country/:slug/", async (c) => {
     />,
   );
 });
+
+/**
+ * Sitemaps: an index, one per live country, and one for the text pages.
+ *
+ * Served regardless of the launch flag — they are harmless unindexed, and
+ * robots.txt only advertises them once indexing is on.
+ */
+const SITEMAP_CACHE = "public, max-age=3600, stale-while-revalidate=86400";
+
+app.get("/sitemap.xml", (c) => {
+  c.header("Content-Type", "application/xml; charset=utf-8");
+  c.header("Cache-Control", SITEMAP_CACHE);
+  return c.body(sitemapIndex());
+});
+
+app.get("/sitemap-pages.xml", (c) => {
+  c.header("Content-Type", "application/xml; charset=utf-8");
+  c.header("Cache-Control", SITEMAP_CACHE);
+  return c.body(pagesSitemap());
+});
+
+// One explicit route per live country rather than a pattern: a literal
+// suffix after a parameter is fragile, and the first attempt silently 404'd
+// every country sitemap while the index happily linked to them.
+for (const code of sitemapCountries()) {
+  app.get(`/sitemap-${code}.xml`, (c) => {
+    c.header("Content-Type", "application/xml; charset=utf-8");
+    c.header("Cache-Control", SITEMAP_CACHE);
+    return c.body(countrySitemap(code));
+  });
+}
+
 
 app.get("/robots.txt", (c) => {
   // Disallow everything unless this is the real site AND the launch flag is
