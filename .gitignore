@@ -10,7 +10,10 @@ dist/
 # Fetched data never belongs in the repository
 data/
 
-# Secrets
+# Secrets. SECRETS.local.md holds API keys in plain text and must never be
+# tracked: this repository is public. A pre-commit hook enforces it as well.
+*.local.md
+.cdsapirc
 .env
 .venv/
 .npm-cache/

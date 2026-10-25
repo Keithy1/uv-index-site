@@ -2,6 +2,26 @@
 
 Everything here is free. Each item is blocking for the step named beside it.
 
+## 0. Where keys live
+
+`SECRETS.local.md` in the repository root is the scratchpad for keys and ids.
+It is **never committed**: `.gitignore` excludes `*.local.md`, and
+`.githooks/pre-commit` refuses any commit that stages a secrets file or that
+contains something shaped like a Copernicus or Cloudflare key. This repository
+is public, so that matters.
+
+`core.hooksPath` is local configuration and does not travel with a clone. In any
+fresh clone, enable the hook once:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Keys still have to reach GitHub Actions, which is where the fetchers actually
+run. Always set them with `gh secret set <NAME> --repo Keithy1/uv-index-site`,
+which prompts for the value rather than taking it on the command line, so it
+never lands in your shell history or in a log.
+
 ## 1. Copernicus ADS — blocks the forecast feed
 
 The whole Australian forecast (tomorrow's peak, today's curve, sun-protection

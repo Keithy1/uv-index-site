@@ -1,0 +1,45 @@
+#!/bin/sh
+# Refuse to commit secrets. This repository is public, so a key that reaches a
+# commit is a key published to the world.
+#
+# .gitignore already excludes these files, but `git add -f`, a rename, or a file
+# created before the ignore rule all get past it. This hook does not.
+#
+# Enabled with:  git config core.hooksPath .githooks
+# (core.hooksPath is local configuration, so each clone must set it once.)
+
+fail() {
+  echo "pre-commit: refusing to commit — $1" >&2
+  echo "            If this is genuinely safe: git commit --no-verify" >&2
+  exit 1
+}
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# 1. Files that exist to hold secrets, by name.
+for file in $staged; do
+  case "$file" in
+    *.local.md|.cdsapirc|*/.cdsapirc|.env|*/.env|.env.*|.git-creds|.git-credentials)
+      fail "$file is a secrets file"
+      ;;
+  esac
+done
+
+# 2. A Copernicus key pasted into any other file. Matches the .cdsapirc shape
+#    only when the key line carries a real value, so the template's PASTE_HERE
+#    and the documented example both pass.
+for file in $staged; do
+  git show ":$file" 2>/dev/null \
+    | grep -qiE '^[[:space:]]*key:[[:space:]]*[0-9a-f]{8}-?[0-9a-f]{4}' \
+    && fail "$file looks like it contains a Copernicus ADS key"
+done
+
+# 3. A Cloudflare API token pasted in (40 chars of base62-ish, after the name).
+for file in $staged; do
+  git show ":$file" 2>/dev/null \
+    | grep -qE 'CLOUDFLARE_API_TOKEN[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_-]{30,}' \
+    && fail "$file looks like it contains a Cloudflare API token"
+done
+
+exit 0
