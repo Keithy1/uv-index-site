@@ -141,21 +141,37 @@ A fixture of that feed is kept at
   experimental on the form, so GRIB is the safer default and the Actions job will
   need a GRIB reader.
 
-  **Transport is now the official `cdsapi` client** (a retrieve is an
-  asynchronous job that must be submitted, polled and downloaded, which the old
-  hand-rolled POST did not do). It has still never run against the live API.
+  **Transport works.** Confirmed by the `cams-probe` workflow on 25 October 2026
+  (run 40215142210): cdsapi submitted, polled and downloaded in about 57 seconds.
 
-  Still open, and deliberately not guessed at: what the download actually
-  contains. The `cams-probe` workflow exists to answer that — whether GRIB or
-  netCDF comes back, the variable names and units inside it, and whether
-  UVI = rate x 40 gives a believable Sydney peak (roughly 10-13 in spring). It
-  runs in Actions because `ADS_API_KEY` lives there and nowhere else. `run()`
-  stays raising until the probe reports, so that the parser is built on
-  observation rather than expectation — which is exactly the mistake the
-  variable names already caught us out on.
+  What the probe established, replacing what we had assumed:
 
-  Beyond that, the derived index must be validated against ARPANSA measurements
-  in the same hour before it is published anywhere.
+  | Question | Answer |
+  |---|---|
+  | Does the retrieve succeed? | Yes, with the corrected payload |
+  | What comes back? | **GRIB**, confirmed by magic bytes — 700 KB for 13 hours over Australia alone |
+  | Does area subsetting work? | Yes: an 86 × 104 grid for the AU bounding box |
+  | Variable names *inside* the file | **`uvbed` and `uvbedcs`** |
+  | Units in the metadata | **Absent** — cfgrib reports `~` |
+  | Sydney peak, 24 Oct, × 40 | **UVI 9.0** from a dose rate of 0.2247 |
+
+  Note the split that caught us out earlier, now confirmed from both sides: the
+  *request* takes the long names (`uv_biologically_effective_dose`), while the
+  *file* uses the short GRIB names (`uvbed`). Both are correct, in their own
+  place. The original code used the short names for the request, which is why it
+  could never have worked.
+
+  A Sydney peak of 9.0 in late October is believable, so the × 40 conversion is
+  not wildly wrong. **That is not the same as validated.** The GRIB carries no
+  units, so the W/m² assumption still rests on the ECMWF forum rather than on
+  anything the file says, and the hourly shape falls away faster in the
+  afternoon than measured UV usually does. Before any forecast is published it
+  must be compared against ARPANSA measurements in the same hour, across several
+  stations and several days.
+
+  Reading the file needs `cfgrib`, which works on the Actions runner from pip
+  wheels alone, with no apt packages.
+
 - All launch page templates: city, country, tomorrow, the guide, the world map,
   sitemaps, structured data.
 - Monthly normals from ARPANSA's historical datasets.

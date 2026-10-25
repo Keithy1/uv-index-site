@@ -14,8 +14,16 @@ database, and each would have failed the request outright:
   * its netCDF value is "netcdf_zip", not "netcdf". netCDF is also marked
     experimental on the form, so GRIB is the safer default.
 
-The physics is unchanged: both variables are dose RATES in W/m2, and
-UV index = rate / 0.025 W/m2 = rate * 40 (WHO definition, instantaneous).
+Note the two naming systems, both confirmed live on 25 October 2026: the
+REQUEST takes the long names above, while the GRIB file that comes back uses the
+short names "uvbed" and "uvbedcs". Use each in its own place.
+
+The physics: both variables are dose RATES, and UV index = rate / 0.025 W/m2 =
+rate * 40 (WHO definition, instantaneous). The probe got a Sydney peak of UVI
+9.0 for 24 October, which is believable for late spring -- but the GRIB carries
+NO units metadata, so "W/m2" still rests on the ECMWF forum, not on the file.
+Validate against ARPANSA measurements in the same hour before publishing any
+forecast.
 
 Licence: free, commercial use allowed; credit line in docs/licences.md.
 
