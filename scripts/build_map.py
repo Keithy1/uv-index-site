@@ -1,0 +1,173 @@
+"""Generate a country outline as an SVG path, from Natural Earth.
+
+Run at build time, not in the browser: no map library ever reaches a visitor.
+The output is a small TypeScript module with the path, the viewBox and the
+projection constants, so city dots can be placed on exactly the same geometry
+the outline was drawn with.
+
+Natural Earth 1:110m is public domain and needs no attribution, though the
+methods page credits it anyway.
+
+    python scripts/build_map.py au > src/lib/map-au.ts
+
+Re-run only when adding a country. The generated file is committed so that a
+deploy never depends on the network.
+"""
+from __future__ import annotations
+
+import json
+import math
+import sys
+import urllib.request
+
+SOURCE = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/"
+    "master/geojson/ne_110m_admin_0_countries.geojson"
+)
+UA = {"User-Agent": "Mozilla/5.0 (compatible; uvatlas-build/1.0)"}
+
+# ISO A2 -> what to draw. Bounds clip out distant territories that would
+# otherwise shrink the mainland to nothing (Australia owns islands far into
+# the Indian and Southern Oceans).
+COUNTRIES = {
+    "au": {"iso": "AU", "bounds": (112.0, -44.5, 154.5, -9.5), "name": "Australia"},
+    "nz": {"iso": "NZ", "bounds": (166.0, -47.5, 179.0, -34.0), "name": "New Zealand"},
+    "us": {"iso": "US", "bounds": (-125.0, 24.0, -66.5, 49.5), "name": "United States"},
+}
+
+WIDTH = 480
+PADDING = 6
+
+
+def fetch_features() -> list[dict]:
+    req = urllib.request.Request(SOURCE, headers=UA)
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return json.load(resp)["features"]
+
+
+def rings_for(features: list[dict], iso: str) -> list[list[tuple[float, float]]]:
+    for feature in features:
+        props = feature.get("properties", {})
+        if props.get("ISO_A2") == iso or props.get("ISO_A2_EH") == iso:
+            geom = feature["geometry"]
+            if geom["type"] == "Polygon":
+                return [[(x, y) for x, y in geom["coordinates"][0]]]
+            return [[(x, y) for x, y in poly[0]] for poly in geom["coordinates"]]
+    raise LookupError(f"no feature with ISO_A2 {iso}")
+
+
+def within(ring, bounds) -> bool:
+    """Keep a ring only if its centre falls inside the bounds."""
+    w, s, e, n = bounds
+    cx = sum(p[0] for p in ring) / len(ring)
+    cy = sum(p[1] for p in ring) / len(ring)
+    return w <= cx <= e and s <= cy <= n
+
+
+def simplify(ring, tolerance: float):
+    """Douglas-Peucker. A 110m outline is already coarse; this trims the rest."""
+    if len(ring) < 3:
+        return ring
+
+    def distance(p, a, b) -> float:
+        if a == b:
+            return math.dist(p, a)
+        t = max(0.0, min(1.0, (
+            (p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])
+        ) / ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)))
+        proj = (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
+        return math.dist(p, proj)
+
+    first, last = ring[0], ring[-1]
+    worst, index = 0.0, 0
+    for i in range(1, len(ring) - 1):
+        d = distance(ring[i], first, last)
+        if d > worst:
+            worst, index = d, i
+    if worst <= tolerance:
+        return [first, last]
+    return simplify(ring[: index + 1], tolerance)[:-1] + simplify(ring[index:], tolerance)
+
+
+def main(argv: list[str]) -> int:
+    key = (argv[1] if len(argv) > 1 else "au").lower()
+    if key not in COUNTRIES:
+        print(f"unknown country {key}; known: {', '.join(COUNTRIES)}", file=sys.stderr)
+        return 2
+    spec = COUNTRIES[key]
+
+    rings = [r for r in rings_for(fetch_features(), spec["iso"]) if within(r, spec["bounds"])]
+    rings = [simplify(r, 0.25) for r in rings]
+    rings = [r for r in rings if len(r) >= 4]
+    if not rings:
+        print("nothing left after clipping", file=sys.stderr)
+        return 1
+
+    lons = [p[0] for r in rings for p in r]
+    lats = [p[1] for r in rings for p in r]
+    min_lon, max_lon = min(lons), max(lons)
+    min_lat, max_lat = min(lats), max(lats)
+
+    # Equirectangular with a cos(mean latitude) correction. For one country at
+    # this scale it is indistinguishable from a proper conic and needs no
+    # projection library at render time -- the city dots use the same two
+    # lines of arithmetic.
+    mean_lat = math.radians((min_lat + max_lat) / 2)
+    x_scale = math.cos(mean_lat)
+    span_x = (max_lon - min_lon) * x_scale
+    span_y = max_lat - min_lat
+    inner = WIDTH - 2 * PADDING
+    scale = inner / span_x
+    height = round(span_y * scale + 2 * PADDING)
+
+    def project(lon: float, lat: float) -> tuple[float, float]:
+        x = PADDING + (lon - min_lon) * x_scale * scale
+        y = PADDING + (max_lat - lat) * scale
+        return round(x, 1), round(y, 1)
+
+    paths = []
+    for ring in rings:
+        pts = [project(lon, lat) for lon, lat in ring]
+        paths.append("M" + " L".join(f"{x},{y}" for x, y in pts) + " Z")
+    path = " ".join(paths)
+
+    out = f'''/**
+ * {spec["name"]} outline, generated by scripts/build_map.py from Natural Earth
+ * 1:110m (public domain). Do not edit by hand -- re-run the script.
+ *
+ * The projection is equirectangular with a cos(mean latitude) correction,
+ * which at the scale of one country is indistinguishable from a proper conic
+ * and costs two lines of arithmetic instead of a projection library. `project`
+ * places a city on exactly the geometry the outline was drawn with.
+ */
+export const VIEW_WIDTH = {WIDTH};
+export const VIEW_HEIGHT = {height};
+
+const MIN_LON = {min_lon};
+const MAX_LAT = {max_lat};
+const X_SCALE = {x_scale:.10f};
+const SCALE = {scale:.6f};
+const PADDING = {PADDING};
+
+export const OUTLINE_PATH =
+  "{path}";
+
+/** Latitude and longitude to a point in the viewBox. */
+export function project(lat: number, lon: number): {{ x: number; y: number }} {{
+  return {{
+    x: PADDING + (lon - MIN_LON) * X_SCALE * SCALE,
+    y: PADDING + (MAX_LAT - lat) * SCALE,
+  }};
+}}
+'''
+    sys.stdout.write(out)
+    print(
+        f"// rings: {len(rings)}, points: {sum(len(r) for r in rings)}, "
+        f"path chars: {len(path)}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

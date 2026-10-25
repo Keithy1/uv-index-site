@@ -222,3 +222,70 @@ export async function cityData(
     clearSkyToday: clearSky,
   };
 }
+
+export interface CountryRow {
+  readonly locationId: string;
+  readonly latest: LatestReading | null;
+  /** Forecast points in the queried window, for working out today's peak. */
+  readonly forecast: readonly SeriesPoint[];
+}
+
+/**
+ * Every city in one country, in a single query.
+ *
+ * One statement rather than thirteen: D1 bills row reads and the Worker has
+ * 10 ms of CPU, so a per-city loop would be both slower and dearer. Grouping
+ * happens in code, where thirteen cities is nothing.
+ */
+export async function countryData(
+  db: D1Database,
+  locationIds: readonly string[],
+  fromUtc: string,
+  toUtc: string,
+  now: Date = new Date(),
+): Promise<Map<string, CountryRow>> {
+  if (locationIds.length === 0) return new Map();
+  const placeholders = locationIds.map((_id, i) => `?${i + 3}`).join(",");
+
+  const { results } = await db
+    .prepare(
+      `SELECT location_id, source, kind, valid_at, uvi
+       FROM readings
+       WHERE valid_at >= ?1 AND valid_at <= ?2
+         AND location_id IN (${placeholders})
+       ORDER BY valid_at`,
+    )
+    .bind(fromUtc, toUtc, ...locationIds)
+    .all<{ location_id: string; source: string; kind: string; valid_at: string; uvi: number }>();
+
+  const cutoff = now.getTime() - STALE_AFTER_MS;
+  const byLocation = new Map<string, { measured: SeriesPoint[]; forecast: SeriesPoint[] }>();
+  for (const id of locationIds) byLocation.set(id, { measured: [], forecast: [] });
+
+  for (const row of results) {
+    const bucket = byLocation.get(row.location_id);
+    if (!bucket) continue;
+    const point = { validAt: row.valid_at, uvi: row.uvi, source: row.source };
+    if (row.kind === "measured") bucket.measured.push(point);
+    else if (row.kind === "forecast") bucket.forecast.push(point);
+  }
+
+  const out = new Map<string, CountryRow>();
+  for (const [id, bucket] of byLocation) {
+    const last = bucket.measured[bucket.measured.length - 1];
+    out.set(id, {
+      locationId: id,
+      latest: last
+        ? {
+            locationId: id,
+            uvi: last.uvi,
+            validAt: last.validAt,
+            source: last.source,
+            stale: Date.parse(last.validAt) < cutoff,
+          }
+        : null,
+      forecast: bucket.forecast,
+    });
+  }
+  return out;
+}

@@ -15,10 +15,19 @@ import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
 import type { Env } from "./lib/store";
-import { cityData, commitResult, latestMeasured, readHealth, STALE_AFTER_MS } from "./lib/store";
+import {
+  cityData,
+  commitResult,
+  countryData,
+  latestMeasured,
+  readHealth,
+  STALE_AFTER_MS,
+} from "./lib/store";
 import { localDateKey, localMinutes } from "./lib/time";
 import * as arpansa from "./sources/arpansa";
 import { CityPage } from "./views/CityPage";
+import type { CityRow } from "./views/CountryPage";
+import { CountryPage } from "./views/CountryPage";
 import { Preview } from "./views/Preview";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -83,6 +92,60 @@ app.get("/api/health", async (c) => {
   return c.json({ healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources }, healthy ? 200 : 503);
 });
 
+/** UTC window generous enough to contain any city's local day. */
+function dayWindow(now: Date): { from: string; to: string } {
+  const iso = (d: Date) => d.toISOString().slice(0, 19) + "Z";
+  return {
+    from: iso(new Date(now.getTime() - 36 * 3600_000)),
+    to: iso(new Date(now.getTime() + 48 * 3600_000)),
+  };
+}
+
+/**
+ * A country page, e.g. /au/.
+ *
+ * Registered before the city route so that /au/ is not read as a city slug.
+ */
+app.get("/:country/", async (c) => {
+  const country = c.req.param("country") as CountryCode;
+  const settings = countrySettings(country);
+  if (!settings || settings.status !== "live") return c.notFound();
+
+  const now = new Date();
+  const cities = locationsIn(country).filter((l) => l.status === "live");
+  const { from, to } = dayWindow(now);
+  const data = await countryData(c.env.DB, cities.map((l) => l.id), from, to, now);
+
+  const rows: CityRow[] = cities.map((location) => {
+    const row = data.get(location.id);
+    const today = localDateKey(now.toISOString(), location.tz);
+    const peaks = (row?.forecast ?? []).filter(
+      (p) => localDateKey(p.validAt, location.tz) === today,
+    );
+    return {
+      location,
+      uvi: row?.latest?.uvi ?? null,
+      validAt: row?.latest?.validAt ?? null,
+      stale: row?.latest?.stale ?? false,
+      peak: peaks.length ? Math.max(...peaks.map((p) => p.uvi)) : null,
+    };
+  });
+
+  // Highest first; cities with no reading sink to the bottom rather than
+  // being dropped, because a missing station is information too.
+  rows.sort((a, b) => (b.uvi ?? -1) - (a.uvi ?? -1));
+
+  c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
+  return c.html(
+    <CountryPage
+      country={settings}
+      rows={rows}
+      now={now}
+      hasForecast={rows.some((r) => r.peak !== null)}
+    />,
+  );
+});
+
 /**
  * A city page, e.g. /au/perth/.
  *
@@ -99,8 +162,7 @@ app.get("/:country/:slug/", async (c) => {
   if (!location) return c.notFound();
 
   const now = new Date();
-  const from = new Date(now.getTime() - 36 * 3600_000).toISOString().slice(0, 19) + "Z";
-  const to = new Date(now.getTime() + 48 * 3600_000).toISOString().slice(0, 19) + "Z";
+  const { from, to } = dayWindow(now);
   const data = await cityData(c.env.DB, location.id, from, to, now);
 
   const today = localDateKey(now.toISOString(), location.tz);
