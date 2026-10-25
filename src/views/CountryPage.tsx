@@ -70,6 +70,38 @@ letter-spacing:-.03em}
 .mapbox{border:1px solid var(--line);border-radius:12px;background:var(--card);
 padding:8px;margin:8px 0}
 .mapbox svg{display:block;width:100%;height:auto}
+
+/* Today/Tomorrow switch, with no JavaScript at all.
+   Two hidden radios drive it: :checked for the chosen day, :has() for the
+   hover preview. Radios rather than buttons because that is what this is --
+   one of two mutually exclusive options -- so it arrives keyboard-operable
+   and announced correctly without any ARIA. */
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.dayswitch{display:inline-flex;border:1px solid var(--line);border-radius:999px;
+overflow:hidden;margin:4px 0 0}
+.dayswitch label{padding:6px 16px;cursor:pointer;font-size:.9rem;font-weight:600;
+color:var(--muted);user-select:none}
+.dayswitch label:hover{color:var(--fg)}
+#day-today:checked~.dayswitch label[for="day-today"],
+#day-tomorrow:checked~.dayswitch label[for="day-tomorrow"]{background:var(--link);color:#fff}
+/* Focus must be visible on the label, since the radio itself is off-screen. */
+#day-today:focus-visible~.dayswitch label[for="day-today"],
+#day-tomorrow:focus-visible~.dayswitch label[for="day-tomorrow"]{outline:3px solid var(--focus);
+outline-offset:-3px}
+/* One pair of rules drives both the SVG marker groups and the caption, so the
+   words and the map can never disagree about which day is on screen. */
+.m-tomorrow{display:none}
+#day-tomorrow:checked~.mapbox .m-today,
+#day-tomorrow:checked~.daycap .m-today{display:none}
+#day-tomorrow:checked~.mapbox .m-tomorrow,
+#day-tomorrow:checked~.daycap .m-tomorrow{display:inline}
+/* Hover previews the other day without committing to it. */
+.daymap:has(label[for="day-tomorrow"]:hover) .m-today{display:none}
+.daymap:has(label[for="day-tomorrow"]:hover) .m-tomorrow{display:inline}
+.daymap:has(label[for="day-today"]:hover) .m-tomorrow{display:none}
+.daymap:has(label[for="day-today"]:hover) .m-today{display:inline}
+.daycap{font-size:.85rem;color:var(--muted);margin:6px 0 0}
 table{border-collapse:collapse;width:100%;margin:8px 0}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 /* Column headings only. The city cells are row headers (th scope="row") for
@@ -86,37 +118,96 @@ font-size:.82rem;color:var(--muted)}
 @media (max-width:460px){th.hide,td.hide{display:none}}
 `;
 
+function Markers({
+  rows,
+  map,
+  value,
+}: {
+  rows: readonly CityRow[];
+  map: CountryMap;
+  value: (r: CityRow) => number | null;
+}) {
+  return (
+    <>
+      {rows.map((r) => {
+        const uvi = value(r);
+        if (uvi === null) return null;
+        const { x, y } = map.project(r.location.lat, r.location.lon);
+        const band = bandFor(uvi);
+        return (
+          <g key={r.location.id}>
+            <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
+            <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
+              text-anchor="middle">{Math.round(uvi)}</text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 function CountryOutline({
   rows,
   map,
   countryName,
+  measured,
 }: {
   rows: readonly CityRow[];
   map: CountryMap;
   countryName: string;
+  measured: boolean;
 }) {
-  const plotted = rows.filter((r) => r.uvi !== null);
+  const hasTomorrow = rows.some((r) => r.tomorrow !== null);
+  const todayLabel = measured ? "UV now" : "peak today";
+
   return (
-    <div class="mapbox">
-      <svg
-        viewBox={`0 0 ${map.width} ${map.height}`}
-        role="img"
-        aria-label={`Map of ${countryName} with a marker for each city. The same figures are listed in the table below.`}
-      >
-        <path d={map.outlinePath} fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"
-          stroke-linejoin="round" opacity="0.75" />
-        {plotted.map((r) => {
-          const { x, y } = map.project(r.location.lat, r.location.lon);
-          const band = bandFor(r.uvi!);
-          return (
-            <g key={r.location.id}>
-              <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
-              <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
-                text-anchor="middle">{Math.round(r.uvi!)}</text>
+    <div class="daymap">
+      {/* Both days are rendered; CSS decides which is visible. Nothing is
+          fetched or re-rendered on switching, so there is no flicker and no
+          layout shift -- the two groups occupy the same box. */}
+      {hasTomorrow && (
+        <>
+          <input class="sr" type="radio" name="day" id="day-today" checked />
+          <input class="sr" type="radio" name="day" id="day-tomorrow" />
+          <div class="dayswitch">
+            <label for="day-today">Today</label>
+            <label for="day-tomorrow">Tomorrow</label>
+          </div>
+        </>
+      )}
+      <div class="mapbox">
+        <svg
+          viewBox={`0 0 ${map.width} ${map.height}`}
+          role="img"
+          aria-label={`Map of ${countryName} with a marker for each city. The same figures are listed in the table below, for today and tomorrow.`}
+        >
+          <path d={map.outlinePath} fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"
+            stroke-linejoin="round" opacity="0.75" />
+          <g class="m-today">
+            <Markers rows={rows} map={map} value={(r) => r.uvi} />
+          </g>
+          {hasTomorrow && (
+            <g class="m-tomorrow">
+              <Markers rows={rows} map={map} value={(r) => r.tomorrow} />
             </g>
-          );
-        })}
-      </svg>
+          )}
+        </svg>
+      </div>
+      {hasTomorrow && (
+        <p class="daycap">
+          {/* The caption follows the map. Saying "showing peak today" while
+              tomorrow's markers are on screen is exactly the kind of quiet
+              contradiction this project keeps tripping over, so it is driven
+              by the same rules rather than left static. */}
+          <span class="m-today">
+            Showing {todayLabel}. Hover or select Tomorrow for the forecast peak.
+          </span>
+          <span class="m-tomorrow">
+            Showing tomorrow's forecast peak. Hover or select Today for {todayLabel}.
+          </span>{" "}
+          Every figure is also in the table below.
+        </p>
+      )}
     </div>
   );
 }
@@ -212,7 +303,12 @@ export function CountryPage(view: CountryView) {
         </p>
       )}
 
-      <CountryOutline rows={rows} map={view.map} countryName={country.name} />
+      <CountryOutline
+        rows={rows}
+        map={view.map}
+        countryName={country.name}
+        measured={view.measured}
+      />
 
       <h2 id="tomorrow">
         {view.measured
