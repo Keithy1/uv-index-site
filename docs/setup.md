@@ -72,24 +72,36 @@ gh secret set CLOUDFLARE_ACCOUNT_ID --repo Keithy1/uv-index-site
 
 Your account ID is on the right of the Cloudflare dashboard home page.
 
-## 3b. Turn on "Always Use HTTPS" — NOT DONE
+## 3b. Always Use HTTPS — DONE (25 October 2026)
 
-Checked 25 October 2026: `http://uvatlas.com/au/` returns 200 over plain HTTP
-rather than redirecting. Both schemes therefore serve the same pages, which is
-a duplicate-URL problem as well as a privacy one.
+Enabled on the zone, with encryption mode Full. `http://uvatlas.com/au/` now
+returns 301 to https.
 
-Cloudflare dashboard → **uvatlas.com** → **SSL/TLS** → **Edge Certificates** →
-**Always Use HTTPS** → on.
+Deliberately NOT done in the Worker, and Cloudflare's own warning on that
+settings page says why: "Enabling this while your origin also forces HTTPS
+redirects can cause redirect loops." The Worker does not reliably see the
+scheme the visitor used -- an earlier attempt sent a plain-http *local*
+request to `https://uvatlas.com` for exactly that reason -- so the edge owns
+the scheme and the Worker owns the path.
 
-This is deliberately not done in the Worker. The edge handles it before the
-Worker runs, and a Worker-side scheme redirect is a loop waiting to happen: the
-Worker does not reliably see the scheme the visitor used. An earlier attempt
-sent a plain-http *local* request to `https://uvatlas.com` for exactly that
-reason.
+The cost of that split is one extra hop for an http visitor whose path also
+needs fixing: the edge upgrades the scheme, then the Worker fixes the path.
+Verified across every pattern:
 
-Everything else canonical is already handled in code and verified live: `/au`
-to `/au/`, `/AU/Perth` to `/au/perth/`, and `www.uvatlas.com` to the bare
-domain — each in a single hop, with no redirect chains and no loops.
+| Request | Hops | Ends at |
+|---|---|---|
+| `https://uvatlas.com/au/perth/` | 0 | itself |
+| `https://www.uvatlas.com/AU/Perth` | 1 | `https://uvatlas.com/au/perth/` |
+| `http://uvatlas.com/au/` | 1 | https |
+| `http://uvatlas.com/AU/Perth` | 2 | `https://uvatlas.com/au/perth/` |
+
+Two hops is the worst case and only affects plain-http visitors with a
+non-canonical path. No loops anywhere, and `/sitemap.xml` and `/robots.txt`
+redirect zero times.
+
+**HSTS is deliberately off.** It tells browsers to refuse http for months, is
+cached client-side, and with "preload" is genuinely hard to undo. It is the
+right call for a mature site and a bad bet for one that has not launched.
 
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
