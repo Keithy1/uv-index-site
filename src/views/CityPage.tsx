@@ -160,7 +160,15 @@ export function CityPage(view: CityView) {
     .filter((l) => l.id !== loc.id && l.status === "live")
     .slice(0, 3);
 
-  const title = `UV Index ${loc.name} Today: Live Reading and Forecast`;
+  // The title must not promise what the page has not got. It said "Live
+  // Reading and Forecast" for every city, including the fifty US ones that
+  // have no instrument and say so three lines later: the body read "Forecast
+  // for 11:00 AM EDT" under a title offering a live reading. A title that
+  // oversells its own page is the kind of mismatch Google reads as a reason to
+  // rewrite it, and it is a promise this site cannot keep.
+  const title = view.measured
+    ? `UV Index ${loc.name} Today: Live Reading and Forecast`
+    : `UV Index ${loc.name} Today: Hourly Forecast and Sun Protection Times`;
   const description = view.measured
     ? `Live UV index for ${loc.name}, measured by ARPANSA and updated every ` +
       `few minutes, with today's forecast curve and sun protection times.`
