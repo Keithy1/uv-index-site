@@ -19,7 +19,7 @@ import type { Location } from "../lib/locations";
 import { locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
 import { describeCurve, minutesToClock, protectionWindow } from "../lib/chart";
-import { howLongAgo, localDate, localTimeWithZone } from "../lib/time";
+import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
 import { Layout, ORIGIN } from "./Layout";
 
@@ -37,6 +37,14 @@ export interface CityView {
   readonly tomorrow: { uvi: number; minutes: number } | null;
   /** True when the forecast came from CAMS, so its credit is required. */
   readonly hasForecast: boolean;
+  /**
+   * Whether this city has an instrument. Australia does; the United States
+   * has only forecasts, and the page must not imply a measurement where there
+   * is none -- so this changes the wording and the credit, not just the data.
+   */
+  readonly measured: boolean;
+  /** Which source to credit beneath the reading. */
+  readonly credit: "arpansa" | "epa";
   /**
    * The level the advice is for, which is NOT the current reading. See
    * lib/current.ts: at 12:19 am this page said "no protection needed" beside
@@ -145,6 +153,7 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
 export function CityPage(view: CityView) {
   const { location: loc, reading, now } = view;
   const tz = loc.tz;
+  const locale = localeFor(loc.country);
   const band = reading ? bandFor(reading.uvi) : null;
   const window = view.clearSky.length ? protectionWindow(view.clearSky) : null;
   const nearby = locationsIn(loc.country)
@@ -152,9 +161,11 @@ export function CityPage(view: CityView) {
     .slice(0, 3);
 
   const title = `UV Index ${loc.name} Today: Live Reading and Forecast`;
-  const description =
-    `Live UV index for ${loc.name}, measured by ARPANSA and updated every ` +
-    `few minutes, with today's forecast curve and sun protection times.`;
+  const description = view.measured
+    ? `Live UV index for ${loc.name}, measured by ARPANSA and updated every ` +
+      `few minutes, with today's forecast curve and sun protection times.`
+    : `UV index forecast for ${loc.name}: the level now, today's curve, ` +
+      `tomorrow's peak and sun protection times.`;
   const path = `/${loc.country}/${loc.slug}/`;
 
   const structuredData = [
@@ -197,10 +208,20 @@ export function CityPage(view: CityView) {
       {reading ? (
         <>
           <p class="muted small">
-            {reading.stale ? "Last measured " : "Measured "}
-            {localTimeWithZone(reading.validAt, tz)} on {localDate(reading.validAt, tz)}
-            {" · "}
-            {howLongAgo(reading.validAt, now)}
+            {view.measured ? (
+              <>
+                {reading.stale ? "Last measured " : "Measured "}
+                {localTimeWithZone(reading.validAt, tz, locale)} on {localDate(reading.validAt, tz, locale)}
+                {" · "}
+                {howLongAgo(reading.validAt, now)}
+              </>
+            ) : (
+              <>
+                {/* Never "measured": there is no US instrument to measure it. */}
+                Forecast for {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
+                {localDate(reading.validAt, tz, locale)}
+              </>
+            )}
           </p>
 
           <div class="reading">
@@ -214,7 +235,7 @@ export function CityPage(view: CityView) {
             </div>
           </div>
 
-          {reading.stale && (
+          {view.measured && reading.stale && (
             <p class="delayed">
               <strong>Live reading delayed.</strong> ARPANSA's {loc.name} station has not
               reported recently, so this is the last reading it sent rather than the
@@ -233,8 +254,9 @@ export function CityPage(view: CityView) {
         </>
       ) : (
         <p>
-          No measured reading is available for {loc.name} at the moment. This page
-          updates as soon as ARPANSA's station reports again.
+          {view.measured
+            ? `No measured reading is available for ${loc.name} at the moment. This page updates as soon as ARPANSA's station reports again.`
+            : `No current forecast is available for ${loc.name}. This page updates when the next forecast is published.`}
         </p>
       )}
 
@@ -333,7 +355,17 @@ export function CityPage(view: CityView) {
       {/* The credit lives with the data it covers, so no page can show a
           reading without it. */}
       <div class="credits">
-        {reading && (
+        {reading && view.credit === "epa" && (
+          <p>
+            Forecast: US Environmental Protection Agency and the Copernicus
+            Atmosphere Monitoring Service.{" "}
+            <a href="https://www.epa.gov/sunsafety/uv-index-scale-0" rel="nofollow">
+              About the EPA UV Index
+            </a>
+            .
+          </p>
+        )}
+        {reading && view.credit === "arpansa" && (
           <>
             <p>UV observations courtesy of ARPANSA.</p>
             <p>

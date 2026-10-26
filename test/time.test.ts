@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { howLongAgo, localDateKey, localHour, localMinutes, localTimeWithZone } from "../src/lib/time";
+import {
+  howLongAgo,
+  localDateKey,
+  localeFor,
+  localHour,
+  localMinutes,
+  localTimeWithZone,
+} from "../src/lib/time";
 
 /**
  * These tests exist because the daylight-saving split is the easiest way to
@@ -103,5 +110,21 @@ describe("formatter caching", () => {
       expect(localDateKey("2026-01-15T22:00:00Z", "Australia/Sydney")).toBe("2026-01-16");
       expect(localMinutes("2026-01-15T02:00:00Z", "Australia/Sydney")).toBe(13 * 60);
     }
+  });
+});
+
+describe("the locale a zone is named in", () => {
+  it("names a US zone the way a US reader writes it", () => {
+    // en-AU knows AEDT but renders America/New_York as "GMT-4", which is how
+    // /us/miami-fl/ first went live: "Forecast for 11:00 am GMT-4".
+    const miami = "2026-10-26T15:00:00Z";
+    expect(localTimeWithZone(miami, "America/New_York", localeFor("us"))).toContain("EDT");
+    expect(localTimeWithZone(miami, "America/Los_Angeles", localeFor("us"))).toContain("PDT");
+  });
+
+  it("still names an Australian zone", () => {
+    const t = "2026-10-26T02:00:00Z";
+    expect(localTimeWithZone(t, "Australia/Sydney", localeFor("au"))).toContain("AEDT");
+    expect(localTimeWithZone(t, "Australia/Perth", localeFor("au"))).toContain("AWST");
   });
 });

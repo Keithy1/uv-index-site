@@ -63,12 +63,24 @@ describe("a country sitemap", () => {
   });
 
   it("never lists a city whose page would 404", () => {
-    // US city pages are fetched and tabulated but not published. A sitemap
-    // full of 404s is worse than no sitemap.
-    const xml = countrySitemap("us", AT);
-    expect((xml.match(/<url>/g) ?? []).length).toBe(1);
-    expect(xml).toContain("https://uvatlas.com/us/</loc>");
-    expect(xml).not.toContain("/us/miami-fl/");
+    // The rule, not the count: a sitemap full of 404s is worse than no
+    // sitemap. This originally asserted that /us/ had exactly one URL, which
+    // was true only while the US city pages were unpublished -- so it failed
+    // the moment they went live, for a change that was entirely correct.
+    for (const country of ["au", "us"] as const) {
+      const xml = countrySitemap(country, AT);
+      const listed = [...xml.matchAll(/<loc>https:\/\/uvatlas\.com\/[a-z]{2}\/([a-z0-9-]+)\/<\/loc>/g)]
+        .map((m) => m[1]);
+      const live = new Set(
+        locationsIn(country).filter((l) => l.status === "live").map((l) => l.slug),
+      );
+      for (const slug of listed) {
+        expect(live.has(slug!), `${country}/${slug} is listed but not live`).toBe(true);
+      }
+      for (const slug of live) {
+        expect(listed, `${country}/${slug} is live but not listed`).toContain(slug);
+      }
+    }
   });
 
   it("uses absolute URLs, as the spec requires", () => {

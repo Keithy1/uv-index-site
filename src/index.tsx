@@ -286,9 +286,11 @@ const COUNTRY_PAGES: Record<string, {
     // page must not imply one.
     measured: false,
     credit: "epa",
-    // US city pages are added only where Search Console shows real demand, so
-    // there is nothing to link to yet.
-    cityPages: false,
+    // Published 26 October 2026. Each page carries an hourly forecast curve,
+    // tomorrow's peak and its own protection times, so it is not the thin page
+    // the design was guarding against -- it simply has no measured reading,
+    // and says so.
+    cityPages: true,
   },
 };
 
@@ -420,6 +422,9 @@ app.get("/:country/:slug/", async (c) => {
   const settings = countrySettings(country);
   if (!settings || settings.status !== "live") return c.notFound();
 
+  const page = COUNTRY_PAGES[country];
+  if (!page) return c.notFound();
+
   const slug = c.req.param("slug");
   const location = locationsIn(country).find((l) => l.slug === slug && l.status === "live");
   if (!location) return c.notFound();
@@ -452,11 +457,36 @@ app.get("/:country/:slug/", async (c) => {
   const tomorrowPeak = peakOnLocalDay(
     pointsOnLocalDay(data.forecastToday, location.tz, nextLocalDay(today)),
   );
+  const nowMinutes = localMinutes(now.toISOString(), location.tz);
+
+  // Where there is no instrument the "reading" is the forecast for this hour,
+  // and the page says so rather than calling it a measurement.
+  const level = currentLevel({
+    measured: page.measured ? (data.latest && !data.latest.stale ? data.latest.uvi : null) : null,
+    forecast: page.measured ? [] : data.forecastToday,
+    now,
+  });
+  const nearestForecast = page.measured
+    ? null
+    : [...data.forecastToday]
+        .filter((p) => Math.abs(Date.parse(p.validAt) - now.getTime()) <= 90 * 60 * 1000)
+        .sort(
+          (a, b) =>
+            Math.abs(Date.parse(a.validAt) - now.getTime()) -
+            Math.abs(Date.parse(b.validAt) - now.getTime()),
+        )[0] ?? null;
+
+  const reading = page.measured
+    ? data.latest
+    : nearestForecast && level.uvi !== null
+      ? { uvi: level.uvi, validAt: nearestForecast.validAt, stale: false }
+      : null;
+
   const advice = adviceLevel({
-    now: data.latest && !data.latest.stale ? data.latest.uvi : null,
+    now: level.uvi,
     today: curve,
     tomorrowPeak: tomorrowPeak?.uvi ?? null,
-    nowMinutes: localMinutes(now.toISOString(), location.tz),
+    nowMinutes,
   });
 
   c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
@@ -464,7 +494,9 @@ app.get("/:country/:slug/", async (c) => {
     <CityPage
       location={location}
       now={now}
-      reading={data.latest}
+      reading={reading}
+      measured={page.measured}
+      credit={page.credit}
       curve={series}
       clearSky={data.clearSkyToday.map(toPoint)}
       geometry={buildCurve(series, latestPoint)}

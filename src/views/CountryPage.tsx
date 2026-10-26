@@ -10,7 +10,7 @@
  * and the table below carries the same links as crawlable text.
  */
 import type { CountrySettings, Location } from "../lib/locations";
-import { localTimeWithZone } from "../lib/time";
+import { localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi } from "../lib/uv";
 import { Layout, ORIGIN } from "./Layout";
 
@@ -495,7 +495,7 @@ export function CountryPage(view: CountryView) {
               <td><Uvi uvi={r.tomorrow} /></td>
               {view.measured && (
                 <td class="t hide">
-                  {r.validAt ? localTimeWithZone(r.validAt, r.location.tz) : "—"}
+                  {r.validAt ? localTimeWithZone(r.validAt, r.location.tz, localeFor(r.location.country)) : "—"}
                   {r.stale ? " (delayed)" : ""}
                 </td>
               )}

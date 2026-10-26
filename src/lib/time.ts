@@ -17,6 +17,17 @@
  * isolate.
  */
 
+/**
+ * Which locale names a zone.
+ *
+ * en-AU knows AEDT and AWST but renders America/New_York as "GMT-4", which is
+ * both ugly and unhelpful to the reader it is for. The locale follows the
+ * place, so an Australian city gets AEST and a US city gets EDT.
+ */
+export function localeFor(country: string): string {
+  return country === "us" ? "en-US" : "en-AU";
+}
+
 type FormatterKey = string;
 
 const formatters = new Map<FormatterKey, Intl.DateTimeFormat>();
@@ -33,27 +44,27 @@ function formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.Da
 }
 
 /** "2:34 pm" */
-export function localTime(iso: string, tz: string): string {
-  return formatter("en-AU", { timeZone: tz, hour: "numeric", minute: "2-digit" })
+export function localTime(iso: string, tz: string, locale = "en-AU"): string {
+  return formatter(locale, { timeZone: tz, hour: "numeric", minute: "2-digit" })
     .format(new Date(iso))
     .replace(/ /g, " ");
 }
 
 /** "2:34 pm AWST" — the zone abbreviation matters on a page about a place. */
-export function localTimeWithZone(iso: string, tz: string): string {
-  const parts = formatter("en-AU", {
+export function localTimeWithZone(iso: string, tz: string, locale = "en-AU"): string {
+  const parts = formatter(locale, {
     timeZone: tz,
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",
   }).formatToParts(new Date(iso));
   const zone = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
-  return `${localTime(iso, tz)} ${zone}`.trim();
+  return `${localTime(iso, tz, locale)} ${zone}`.trim();
 }
 
 /** "Sunday 25 October" */
-export function localDate(iso: string, tz: string): string {
-  return formatter("en-AU", {
+export function localDate(iso: string, tz: string, locale = "en-AU"): string {
+  return formatter(locale, {
     timeZone: tz,
     weekday: "long",
     day: "numeric",
