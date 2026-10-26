@@ -31,9 +31,44 @@ CREATE TABLE IF NOT EXISTS readings (
   PRIMARY KEY (location_id, source, kind, valid_at)
 ) WITHOUT ROWID;
 
--- Serves "the latest measured reading" and "today's curve" without a table scan.
-CREATE INDEX IF NOT EXISTS readings_recent
-  ON readings (location_id, kind, valid_at DESC);
+-- The two indexes that keep page rendering off a table scan. They are not an
+-- optimisation; without them the site cannot run on D1's free plan at all.
+--
+-- The primary key above is (location_id, source, kind, valid_at), and because
+-- the table is WITHOUT ROWID that key IS the table. Every page query filters on
+-- location_id and a valid_at range, with nothing said about source or kind --
+-- and those two sit in between. SQLite could seek to the location and then had
+-- to read every row that location had ever had, against a 400-day retention.
+-- One home-page render scanned all 63 cities' entire history. The free plan's
+-- daily row-read allowance went in an afternoon and the site answered 500 to
+-- everything until midnight UTC.
+--
+-- Both are covering: the trailing columns are the ones the queries select, so
+-- SQLite answers from the index and never looks the row up. Doubling the write
+-- cost of a row is worth it when the alternative is reading the table.
+--
+-- `readings_recent (location_id, kind, valid_at DESC)` used to live here and was
+-- dropped: no query filters on kind with a location, so nothing could use it,
+-- and an index nothing reads is a write amplification you pay on every insert.
+-- test/query-plans.test.ts fails the build if any page query scans a table, so
+-- an index that stops being enough is caught before it is deployed.
+
+-- Serves today's curve for one city, and the whole table of cities behind a
+-- country page and the home page.
+--
+-- `kind` comes BEFORE valid_at, and every query that uses this index names the
+-- kinds it wants. That ordering is the difference between reading a city's
+-- forecast and reading its forecast plus 84 hours of five-minutely ARPANSA
+-- measurements, of which the country page uses exactly one -- the newest. With
+-- valid_at second instead, a kind filter removes rows from the result but not
+-- from the count: the range is read first and the rows are discarded after.
+CREATE INDEX IF NOT EXISTS readings_window
+  ON readings (location_id, kind, valid_at, source, uvi, issued_at);
+
+-- Serves "the latest measured reading per station", which filters on kind
+-- alone and groups by location.
+CREATE INDEX IF NOT EXISTS readings_measured
+  ON readings (kind, location_id, valid_at DESC, uvi, source);
 
 -- Per-local-day summary: peak, its time, and the sun-protection window.
 CREATE TABLE IF NOT EXISTS daily (

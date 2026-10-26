@@ -114,6 +114,43 @@ export interface LatestReading {
 }
 
 /**
+ * Row reads a single query may cost before it is worth knowing about.
+ *
+ * D1's free plan allows a fixed number of row reads a day and counts rows
+ * *examined*, not returned. A query whose index stops fitting does not get
+ * slower in any way a test would notice -- it gets more expensive, silently,
+ * until the allowance runs out mid-afternoon and the whole site answers 503.
+ *
+ * test/query-plans.test.ts is the real guard and runs in CI, but it reasons
+ * about plans, not about how much data is actually in the table. These budgets
+ * are the backstop against the case it cannot see: the plan is fine and the
+ * table has simply grown past what the plan assumed. They are generous -- about
+ * five times a healthy render -- because this is an alarm, not a limit.
+ */
+const ROW_BUDGET = {
+  latestMeasured: 2_000,
+  cityWindow: 5_000,
+  countryWindow: 80_000,
+} as const;
+
+/**
+ * Warn when a query reads more rows than it should need.
+ *
+ * Logged, never thrown: a page that still has its data should still render. The
+ * line shows up in `wrangler tail` and Workers Logs, which is where the original
+ * D1_ERROR was found.
+ */
+function charge(name: keyof typeof ROW_BUDGET, meta: { rows_read?: number } | undefined): void {
+  const read = meta?.rows_read ?? 0;
+  if (read > ROW_BUDGET[name]) {
+    console.warn(
+      `d1 row budget: ${name} read ${read} rows, over its budget of ${ROW_BUDGET[name]}. ` +
+        `Check the query plan -- see test/query-plans.test.ts.`,
+    );
+  }
+}
+
+/**
  * The most recent measured reading for every Australian city, in one query.
  *
  * One statement rather than 13 because D1 bills row reads and the Worker has
@@ -123,7 +160,7 @@ export async function latestMeasured(
   db: D1Database,
   now: Date = new Date(),
 ): Promise<Map<string, LatestReading>> {
-  const { results } = await db
+  const { results, meta } = await db
     .prepare(
       `SELECT r.location_id, r.uvi, r.valid_at, r.source
        FROM readings r
@@ -137,6 +174,7 @@ export async function latestMeasured(
        WHERE r.kind = 'measured'`,
     )
     .all<{ location_id: string; uvi: number; valid_at: string; source: string }>();
+  charge("latestMeasured", meta);
 
   const cutoff = now.getTime() - STALE_AFTER_MS;
   return new Map(
@@ -195,15 +233,21 @@ export async function cityData(
   toUtc: string,
   now: Date = new Date(),
 ): Promise<CityData> {
-  const { results } = await db
+  const { results, meta } = await db
     .prepare(
+      // The kinds are named, rather than taking whatever is in the window,
+      // so that readings_window can apply the valid_at range per kind. This
+      // page genuinely needs all three: the chart plots the measured points.
       `SELECT source, kind, valid_at, uvi, issued_at
        FROM readings
-       WHERE location_id = ?1 AND valid_at >= ?2 AND valid_at <= ?3
+       WHERE location_id = ?1
+         AND kind IN ('measured', 'forecast', 'forecast_clear')
+         AND valid_at >= ?2 AND valid_at <= ?3
        ORDER BY valid_at`,
     )
     .bind(locationId, fromUtc, toUtc)
     .all<{ source: string; kind: string; valid_at: string; uvi: number; issued_at: string | null }>();
+  charge("cityWindow", meta);
 
   const measured: SeriesPoint[] = [];
   const forecast: SeriesPoint[] = [];
@@ -265,12 +309,18 @@ export async function countryData(
   if (locationIds.length === 0) return new Map();
   const placeholders = locationIds.map((_id, i) => `?${i + 3}`).join(",");
 
-  const { results } = await db
+  const { results, meta } = await db
     .prepare(
+      // Forecast only. This used to ask for the whole window and bucket what
+      // came back, which meant reading every ARPANSA measurement of the last 84
+      // hours -- twelve an hour, per city -- to use the single newest one, and
+      // reading the clear-sky series it then threw away. The newest measured
+      // reading now comes from latestMeasured() and its own index.
       `SELECT location_id, source, kind, valid_at, uvi, issued_at
        FROM readings
-       WHERE valid_at >= ?1 AND valid_at <= ?2
-         AND location_id IN (${placeholders})
+       WHERE location_id IN (${placeholders})
+         AND kind = 'forecast'
+         AND valid_at >= ?1 AND valid_at <= ?2
        ORDER BY valid_at`,
     )
     .bind(fromUtc, toUtc, ...locationIds)
@@ -282,10 +332,10 @@ export async function countryData(
       uvi: number;
       issued_at: string | null;
     }>();
+  charge("countryWindow", meta);
 
-  const cutoff = now.getTime() - STALE_AFTER_MS;
-  const byLocation = new Map<string, { measured: SeriesPoint[]; forecast: SeriesPoint[] }>();
-  for (const id of locationIds) byLocation.set(id, { measured: [], forecast: [] });
+  const byLocation = new Map<string, { forecast: SeriesPoint[] }>();
+  for (const id of locationIds) byLocation.set(id, { forecast: [] });
 
   for (const row of results) {
     const bucket = byLocation.get(row.location_id);
@@ -296,13 +346,16 @@ export async function countryData(
       source: row.source,
       issuedAt: row.issued_at,
     };
-    if (row.kind === "measured") bucket.measured.push(point);
-    else if (row.kind === "forecast") bucket.forecast.push(point);
+    if (row.kind === "forecast") bucket.forecast.push(point);
   }
+
+  // One extra query for every city's newest measurement, which reads a few rows
+  // through readings_measured instead of a few thousand through the window.
+  const latest = await latestMeasured(db, now);
 
   const out = new Map<string, CountryRow>();
   for (const [id, bucket] of byLocation) {
-    const last = bucket.measured[bucket.measured.length - 1];
+    const last = latest.get(id);
     out.set(id, {
       locationId: id,
       latest: last
@@ -311,7 +364,10 @@ export async function countryData(
             uvi: last.uvi,
             validAt: last.validAt,
             source: last.source,
-            stale: Date.parse(last.validAt) < cutoff,
+            // latestMeasured has already applied the staleness rule. Applying
+            // it again here would be a second definition of "too old", and this
+            // file has had enough of those.
+            stale: last.stale,
           }
         : null,
       forecast: bucket.forecast,

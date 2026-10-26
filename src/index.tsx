@@ -55,8 +55,29 @@ import { HomePage } from "./views/HomePage";
 import { About, Privacy, Terms } from "./views/pages/Legal";
 import { Guide } from "./views/pages/Guide";
 import { Methods } from "./views/pages/Methods";
+import { Unavailable } from "./views/Unavailable";
 
 const app = new Hono<{ Bindings: Env }>();
+
+/**
+ * A page, not a bare 500, when something throws.
+ *
+ * D1's free plan allows a fixed number of row reads a day. When that ran out,
+ * every page that reads data threw, and Hono answered with its default: the
+ * words "Internal Server Error" and no markup at all. The text pages kept
+ * working, since they never touch the database, but nothing said so.
+ *
+ * 503 with Retry-After, not 500: it tells Google the page exists and to come
+ * back, where a 500 repeated for a day invites it to drop the page. `no-store`
+ * matters as much -- without it the edge would cache the failure under the
+ * page's own five-minute TTL and keep serving it after the cause had cleared.
+ */
+app.onError((err, c) => {
+  console.error(`unhandled error on ${new URL(c.req.url).pathname}: ${String(err)}`);
+  c.header("Cache-Control", "no-store");
+  c.header("Retry-After", "600");
+  return c.html(<Unavailable />, 503);
+});
 
 /**
  * Keep previews out of the search index.
@@ -119,8 +140,10 @@ app.get("/", async (c) => {
   const headlines: CountryHeadline[] = [];
   for (const country of live) {
     const cities = locationsIn(country.code).filter((l) => l.status === "live");
-    // The US publishes no city pages yet, so fall back to every known city
-    // rather than showing the country as having no data at all.
+    // Fall back to every known city where a country publishes no city pages,
+    // rather than showing the country as having no data at all. Both live
+    // countries publish them now; this keeps the next country working on the
+    // day its data lands and before its pages do.
     const pool = cities.length > 0 ? cities : locationsIn(country.code);
     const data = await countryData(c.env.DB, pool.map((l) => l.id), from, to, now);
 

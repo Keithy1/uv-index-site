@@ -298,3 +298,38 @@ EPA about 1,100 every hour. That is roughly 45,000 of D1's free allowance of
 100,000 writes a day. It fits, but EPA is the wasteful part: it rewrites the
 same rows hourly for a forecast that changes far less often. Dropping EPA to
 every three hours would halve the total if headroom is ever needed.
+
+## Reads are the constraint, not writes, and reads are invisible
+
+On 26 October 2026 the site answered 500 to every request for the rest of the
+day: D1's free plan allows a fixed number of row **reads** a day, and the
+allowance was gone by mid-afternoon.
+
+The cause was a missing index, but the shape of the mistake is the part worth
+keeping. `readings` is `WITHOUT ROWID`, so its primary key
+`(location_id, source, kind, valid_at)` *is* the table. Every page query filters
+on `location_id` and a range of `valid_at` and says nothing about `source` or
+`kind` — which sit between them in the key. SQLite seeked to the location and
+then read everything that location had ever had, against a 400-day retention.
+One home-page render did that for all 63 cities.
+
+Three things made it invisible:
+
+1. **A read is a row examined, not a row returned.** The queries returned a few
+   hundred rows and looked perfectly healthy from the outside.
+2. **SQLite called the bad plan a `SEARCH`, not a `SCAN`.** It *was* a seek — it
+   just read 400 days after seeking. A rule that forbids `SCAN` passes it.
+3. **Nothing got slower.** D1 answered in milliseconds throughout. The only
+   symptom was a counter nobody was watching, until it ran out.
+
+So the guard is in the build. `test/query-plans.test.ts` reads the SQL out of
+`src/lib/store.ts` — not a copy, so a new query is covered the day it is
+written — loads the real `schema.sql` into SQLite and plans each statement. It
+fails on a scan of a growing table, and, more importantly, on a query whose
+`valid_at` range never reaches the index. Reverting the indexes fails six of its
+cases. Retention's `DELETE ... WHERE valid_at < ?` is the one named exemption:
+it runs once a day and an index for it would be paid for on every insert.
+
+`ROW_BUDGET` in `src/lib/store.ts` is the backstop for what the plan test cannot
+see — a plan that is still correct against a table that has outgrown it. It logs
+and never throws.
