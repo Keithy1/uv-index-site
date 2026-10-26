@@ -258,7 +258,12 @@ export function HomePage(view: HomeView) {
                     {band!.name}
                   </span>
                   <span class="muted small">
-                    {h.forecast ? "forecast peak today" : "highest now"}
+                    {/* Both cards describe the same thing now -- the level at
+                        this moment -- and say which countries only have a
+                        forecast for it. This used to read "forecast peak
+                        today" for the United States, a different figure
+                        entirely from the "now" its own country page showed. */}
+                    {h.forecast ? "highest now, forecast" : "highest now"}
                     {h.cityName ? ` · ${h.cityName}` : ""}
                   </span>
                 </div>

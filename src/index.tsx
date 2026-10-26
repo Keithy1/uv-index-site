@@ -11,6 +11,12 @@
 import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
+import {
+  currentLevel,
+  nextLocalDay,
+  peakOnLocalDay,
+  pointsOnLocalDay,
+} from "./lib/current";
 import { DISPATCH_SOURCE, requestFetch, shouldDispatch } from "./lib/dispatch";
 import { isIndexable } from "./lib/host";
 import {
@@ -115,22 +121,37 @@ app.get("/", async (c) => {
     const pool = cities.length > 0 ? cities : locationsIn(country.code);
     const data = await countryData(c.env.DB, pool.map((l) => l.id), from, to, now);
 
-    let best: { uvi: number; location: (typeof pool)[number]; forecast: boolean } | null = null;
+    let best:
+      | { uvi: number; location: (typeof pool)[number]; forecast: boolean; peak: number }
+      | null = null;
     for (const location of pool) {
       const row = data.get(location.id);
-      const measured = row?.latest && !row.latest.stale ? row.latest.uvi : null;
-      const today = localDateKey(now.toISOString(), location.tz);
-      const peaks = (row?.forecast ?? []).filter(
-        (pt) => localDateKey(pt.validAt, location.tz) === today,
-      );
-      const forecastPeak = peaks.length ? Math.max(...peaks.map((pt) => pt.uvi)) : null;
+      // The same definition of "now" the country page uses. It used to fall
+      // back to today's PEAK here, so the home page said "forecast peak today"
+      // for the United States while /us/ said "now" -- one country, two
+      // headline figures depending which page you were on.
+      const level = currentLevel({
+        measured: row?.latest && !row.latest.stale ? row.latest.uvi : null,
+        forecast: row?.forecast ?? [],
+        now,
+      });
+      if (level.uvi === null) continue;
 
-      // Prefer a live measurement; fall back to today's forecast peak, and say
-      // which it is on the page rather than passing one off as the other.
-      const uvi = measured ?? forecastPeak;
-      if (uvi === null) continue;
-      if (!best || uvi > best.uvi) {
-        best = { uvi, location, forecast: measured === null };
+      // Tie-break on today's peak, exactly as the country table sorts. After
+      // dark every city reads 0.0, and without this the two pages picked
+      // different cities as "highest" -- Adelaide here, Alice Springs on /au/,
+      // both showing 0.0 and neither wrong, which is worse than either.
+      const peak =
+        peakOnLocalDay(
+          pointsOnLocalDay(
+            row?.forecast ?? [],
+            location.tz,
+            localDateKey(now.toISOString(), location.tz),
+          ),
+        )?.uvi ?? -1;
+
+      if (!best || level.uvi > best.uvi || (level.uvi === best.uvi && peak > best.peak)) {
+        best = { uvi: level.uvi, location, forecast: level.forecast, peak };
       }
     }
 
@@ -323,51 +344,26 @@ app.get("/:country/", async (c) => {
   const rows: CityRow[] = cities.map((location) => {
     const row = data.get(location.id);
     const today = localDateKey(now.toISOString(), location.tz);
-    const peaks = (row?.forecast ?? []).filter(
-      (p) => localDateKey(p.validAt, location.tz) === today,
+    const peaks = pointsOnLocalDay(row?.forecast ?? [], location.tz, today);
+    const todayPeak = peakOnLocalDay(peaks);
+    const tomorrowPeak = peakOnLocalDay(
+      pointsOnLocalDay(row?.forecast ?? [], location.tz, nextLocalDay(today)),
     );
-    const peak = peaks.length ? Math.max(...peaks.map((p) => p.uvi)) : null;
 
-    // Where there is no instrument, the nearest hourly forecast stands in for
-    // "now". It is a forecast and the page says so; a daily peak alone tells
-    // someone checking at 8 am nothing useful.
-    const NEAR_MS = 90 * 60 * 1000;
-    let nowForecast: number | null = null;
-    if (!page.measured) {
-      let best = Number.POSITIVE_INFINITY;
-      for (const pt of row?.forecast ?? []) {
-        const gap = Math.abs(Date.parse(pt.validAt) - now.getTime());
-        if (gap < best && gap <= NEAR_MS) {
-          best = gap;
-          nowForecast = pt.uvi;
-        }
-      }
-    }
-
-    // Tomorrow, in the city's own day. A partial day yields nothing rather
-    // than a truncated maximum presented as a peak.
-    const tomorrowKey = localDateKey(
-      new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000).toISOString(),
-      "UTC",
-    );
-    const tomorrowPoints = (row?.forecast ?? [])
-      .filter((p) => localDateKey(p.validAt, location.tz) === tomorrowKey)
-      .map((p) => ({ minutes: localMinutes(p.validAt, location.tz), uvi: p.uvi }));
-    const covered =
-      tomorrowPoints.some((pt) => pt.minutes <= 9 * 60) &&
-      tomorrowPoints.some((pt) => pt.minutes >= 16 * 60);
-    const tomorrowPeak = covered
-      ? tomorrowPoints.reduce((a, b) => (b.uvi > a.uvi ? b : a))
-      : null;
+    // Measured where an instrument exists, the nearest hourly forecast where
+    // one does not -- the same shared definition the home page uses.
+    const level = currentLevel({
+      measured: page.measured ? (row?.latest?.uvi ?? null) : null,
+      forecast: page.measured ? [] : (row?.forecast ?? []),
+      now,
+    });
 
     return {
       location,
-      // Measured where an instrument exists, the nearest hourly forecast
-      // where one does not.
-      uvi: page.measured ? (row?.latest?.uvi ?? null) : nowForecast,
+      uvi: level.uvi,
       validAt: page.measured ? (row?.latest?.validAt ?? null) : null,
       stale: page.measured ? (row?.latest?.stale ?? false) : false,
-      peak,
+      peak: todayPeak?.uvi ?? null,
       tomorrow: tomorrowPeak?.uvi ?? null,
       tomorrowMinutes: tomorrowPeak?.minutes ?? null,
     };
