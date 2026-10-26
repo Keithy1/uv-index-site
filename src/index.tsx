@@ -11,6 +11,12 @@
 import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
+import {
+  DISPATCH_SOURCE,
+  noteDispatch,
+  requestFetch,
+  shouldDispatch,
+} from "./lib/dispatch";
 import { isIndexable } from "./lib/host";
 import {
   countrySitemap,
@@ -172,7 +178,10 @@ app.get("/api/health", async (c) => {
   const rows = await readHealth(c.env.DB);
   const now = Date.now();
 
-  const byName = new Map(rows.map((row) => [row.source, row]));
+  // The dispatch row is internal bookkeeping, not a data source.
+  const byName = new Map(
+    rows.filter((row) => row.source !== DISPATCH_SOURCE).map((row) => [row.source, row]),
+  );
 
   // Iterate the EXPECTED sources, not the rows that happen to exist, so a
   // source that has never reported is reported as never having reported.
@@ -519,6 +528,20 @@ export default {
           }
           if (result.notes.length > 0) {
             console.log(`arpansa: ${written} stored, ${result.notes.length} late: ${result.notes.join("; ")}`);
+          }
+
+          // GitHub's scheduler drops runs -- sixteen hours with no CAMS fetch
+          // emptied tomorrow's column for ten of thirteen Australian cities.
+          // This cron is reliable, so it watches the clock on GitHub's behalf.
+          const token = env.GITHUB_DISPATCH_TOKEN;
+          if (token) {
+            const health = await readHealth(env.DB);
+            const decision = shouldDispatch(health, new Date());
+            if (decision.dispatch) {
+              console.log(`asking Actions to fetch: ${decision.reason}`);
+              const ok = await requestFetch(token);
+              await noteDispatch(env.DB, ok, decision.reason, new Date());
+            }
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);

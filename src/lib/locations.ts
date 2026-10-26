@@ -68,7 +68,11 @@ export const COUNTRIES: readonly CountrySettings[] = [
     forecast: ["epa", "cams"],
     // EPA data is public domain, so the US may switch on first.
     ads: false,
-    cacheSeconds: 3600,
+    // Ten minutes, not an hour. An hour was right while the page showed only a
+    // daily peak; it now shows an hourly "now" figure, and an hour-old "now"
+    // is just wrong. A reader seeing a stale switch label was the symptom that
+    // surfaced this.
+    cacheSeconds: 600,
   },
   { code: "uk", name: "United Kingdom", status: "coming", current: [], forecast: [], ads: false, cacheSeconds: 3600 },
   { code: "ca", name: "Canada", status: "coming", current: [], forecast: [], ads: false, cacheSeconds: 3600 },

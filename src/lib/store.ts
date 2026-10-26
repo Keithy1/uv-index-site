@@ -17,6 +17,12 @@ export interface Env {
    * included, means search engines are told to stay away. See lib/host.ts.
    */
   readonly SITE_INDEXABLE?: string;
+  /**
+   * Fine-grained GitHub token with Actions: write on this repository, so the
+   * Worker's reliable cron can trigger the fetch when GitHub's scheduler has
+   * dropped it. Absent means the Worker never intervenes.
+   */
+  readonly GITHUB_DISPATCH_TOKEN?: string;
 }
 
 /**

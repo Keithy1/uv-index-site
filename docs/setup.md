@@ -103,6 +103,34 @@ redirect zero times.
 cached client-side, and with "preload" is genuinely hard to undo. It is the
 right call for a mature site and a bad bet for one that has not launched.
 
+## 3c. GitHub token so the Worker can trigger the fetch — NOT DONE
+
+GitHub's scheduler dropped the CAMS fetch for sixteen hours on 26 October.
+Because the eastern Australian cities had rolled past midnight, their
+"tomorrow" became a day the stale data no longer reached, and ten of thirteen
+cities showed a dash.
+
+Two mitigations are in place: the forecast now fetches 96 lead hours instead
+of 72, so a missed run shortens the horizon rather than emptying a column; and
+the Worker's cron — which has never missed — now watches `source_health` and
+asks GitHub to run the workflow when a source is badly overdue.
+
+That last part needs a token, and does nothing without one:
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal access
+   tokens** → Generate new token.
+2. Repository access: **only** `Keithy1/uv-index-site`.
+3. Permissions → Repository → **Actions: Read and write**. Nothing else.
+4. Then, from the project directory:
+
+       npx wrangler secret put GITHUB_DISPATCH_TOKEN
+
+   Paste it at the prompt; it is a Worker secret, not a repository secret, and
+   never appears in the config or the repository.
+
+Scope it tightly: this token can start workflows on a public repository.
+Actions: write on one repository is the whole requirement.
+
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
 ARPANSA's terms allow free use of the real-time feed with credit, but

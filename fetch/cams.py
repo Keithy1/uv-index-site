@@ -323,9 +323,15 @@ def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Rec
 
     47 then looked sufficient, and was not: it reaches only to the day after
     the run at 23:00 UTC, which for a UTC+10 city is 09:00 on its tomorrow. The
-    /au/tomorrow/ page duly reported Brisbane peaking at 6.1 at 9 am, because
-    9 am was the last hour that existed. 72 reaches past the end of tomorrow
-    in every zone we serve, with margin.
+    tomorrow figures duly reported Brisbane peaking at 6.1 at 9 am, because
+    9 am was the last hour that existed.
+
+    72 covered tomorrow only while the fetch was recent. GitHub dropped the
+    scheduled runs for sixteen hours, the eastern Australian cities rolled past
+    midnight, and their tomorrow became a day the data no longer reached --
+    three of thirteen cities kept a figure. 96 hours buys roughly a day and a
+    half of slack, so a missed run degrades the forecast horizon instead of
+    emptying a column.
 
     Both countries are fetched. The United States needs CAMS as well as EPA
     because EPA publishes today only -- there is no tomorrow in its feed at
@@ -345,7 +351,7 @@ def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Rec
     for name, group in areas.items():
         if not group:
             continue
-        payload = request_payload(str(today), "00:00", area_for(list(group), group), lead_hours=72)
+        payload = request_payload(str(today), "00:00", area_for(list(group), group), lead_hours=96)
         payload["request"]["date"] = [f"{yesterday}/{today}"]
         target = f"cams-{name}.grib"
         try:
