@@ -344,6 +344,24 @@ from reading the whole table.
 see — a plan that is still correct against a table that has outgrown it. It logs
 and never throws.
 
+### The allowances belong to the account, not to this project
+
+Every free-tier figure above is **per Cloudflare account**, and Capitol Tracker
+lives on the same one. Checked on 26 October 2026:
+
+- **D1 is ours alone.** `wrangler d1 list` returns one database, `uvatlas`. The
+  5 million daily row reads are not shared with anything today — but they would
+  be the moment another project on this account created a D1 database.
+- **Workers requests are shared.** The Workers Free plan allows 100,000 requests
+  a day per account, reset at 00:00 UTC, and Pages Functions requests count
+  against the same pool. Anything Capitol Tracker serves from Workers or Pages
+  Functions comes out of the same 100,000 that uvatlas has to launch inside.
+
+So the launch-day arithmetic is not uvatlas against 100,000; it is uvatlas plus
+Capitol Tracker against 100,000, and the edge cache is what keeps page views
+from becoming Worker invocations. Worth knowing before submitting sitemaps:
+crawlers are requests too.
+
 ### Still exposed
 
 The city page legitimately needs its measured history, because the chart plots
