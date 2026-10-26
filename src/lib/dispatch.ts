@@ -13,9 +13,11 @@
  *
  * Does nothing without GITHUB_DISPATCH_TOKEN, so the site runs unchanged until
  * the token exists.
+ *
+ * Policy and HTTP only. The D1 write that records an attempt lives in
+ * store.ts: importing it here pulled the Worker runtime types into the Node
+ * test run, which is the leak the split tsconfig exists to catch.
  */
-import { recordRun } from "./store";
-
 /** Pseudo-source in `source_health` recording when we last asked. */
 export const DISPATCH_SOURCE = "actions-dispatch";
 
@@ -99,19 +101,4 @@ export async function requestFetch(token: string): Promise<boolean> {
     console.error(`actions dispatch refused: HTTP ${response.status}`);
   }
   return response.ok;
-}
-
-/** Record the attempt so the cooldown holds across invocations. */
-export async function noteDispatch(
-  db: D1Database,
-  ok: boolean,
-  reason: string,
-  now: Date,
-): Promise<void> {
-  await recordRun(
-    db,
-    DISPATCH_SOURCE,
-    { ok, records: 0, error: ok ? undefined : `refused (${reason})` },
-    now,
-  );
 }

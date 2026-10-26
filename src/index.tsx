@@ -11,12 +11,7 @@
 import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
-import {
-  DISPATCH_SOURCE,
-  noteDispatch,
-  requestFetch,
-  shouldDispatch,
-} from "./lib/dispatch";
+import { DISPATCH_SOURCE, requestFetch, shouldDispatch } from "./lib/dispatch";
 import { isIndexable } from "./lib/host";
 import {
   countrySitemap,
@@ -34,6 +29,7 @@ import {
   commitResult,
   countryData,
   latestMeasured,
+  noteDispatch,
   readHealth,
   STALE_AFTER_MS,
 } from "./lib/store";
@@ -202,9 +198,32 @@ app.get("/api/health", async (c) => {
       };
     });
 
-  const healthy = sources.every((s) => s.healthy);
+  /**
+   * The safety net's own health.
+   *
+   * The Worker nudges GitHub when a fetch is overdue, using a token that
+   * expires in September 2027. When it lapses every attempt returns 401, the
+   * nudging stops, and nothing else changes -- the scheduled runs continue and
+   * the pages keep working. That is precisely the kind of failure nobody
+   * notices, so it is reported here rather than left in the logs.
+   */
+  const dispatchRow = rows.find((row) => row.source === DISPATCH_SOURCE);
+  const dispatch = {
+    configured: Boolean(c.env.GITHUB_DISPATCH_TOKEN),
+    lastAttemptAt: dispatchRow?.last_attempt_at ?? null,
+    lastOkAt: dispatchRow?.last_ok_at ?? null,
+    lastError: dispatchRow?.last_error ?? null,
+    // Healthy until it has actually failed. Never having needed to ask is the
+    // normal state and must not read as a fault.
+    healthy: !dispatchRow?.last_error,
+  };
+
+  const healthy = sources.every((s) => s.healthy) && dispatch.healthy;
   c.header("Cache-Control", "no-store");
-  return c.json({ healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources }, healthy ? 200 : 503);
+  return c.json(
+    { healthy, staleAfterSeconds: STALE_AFTER_MS / 1000, sources, dispatch },
+    healthy ? 200 : 503,
+  );
 });
 
 
@@ -540,7 +559,9 @@ export default {
             if (decision.dispatch) {
               console.log(`asking Actions to fetch: ${decision.reason}`);
               const ok = await requestFetch(token);
-              await noteDispatch(env.DB, ok, decision.reason, new Date());
+              // Clears any previous error on success, so health recovers by
+              // itself once the token is replaced.
+              await noteDispatch(env.DB, DISPATCH_SOURCE, ok, decision.reason, new Date());
             }
           }
         } catch (error) {

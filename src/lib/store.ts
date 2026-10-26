@@ -319,3 +319,26 @@ export async function countryData(
   }
   return out;
 }
+
+
+/**
+ * Record a dispatch attempt, so the cooldown holds across invocations and
+ * /api/health can report a safety net that has stopped working.
+ *
+ * Lives here rather than in lib/dispatch.ts because it touches D1, and
+ * dispatch.ts is imported by tests that must not see the Worker types.
+ */
+export async function noteDispatch(
+  db: D1Database,
+  source: string,
+  ok: boolean,
+  reason: string,
+  now: Date,
+): Promise<void> {
+  await recordRun(
+    db,
+    source,
+    { ok, records: 0, error: ok ? undefined : `refused (${reason})` },
+    now,
+  );
+}
