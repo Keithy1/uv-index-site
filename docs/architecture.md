@@ -330,6 +330,25 @@ fails on a scan of a growing table, and, more importantly, on a query whose
 cases. Retention's `DELETE ... WHERE valid_at < ?` is the one named exemption:
 it runs once a day and an index for it would be paid for on every insert.
 
+**Every window query must name the kinds it wants.** `readings_window` is
+`(location_id, kind, valid_at, source, uvi, issued_at)`, with `kind` ahead of
+`valid_at` on purpose: the country page was reading 84 hours of five-minutely
+ARPANSA measurements per city in order to use the newest one, plus the clear-sky
+series it then threw away. A `kind` filter removes rows from the *result*, but
+only a `kind` filter ahead of the range stops them being *read*. The newest
+measurement comes from `latestMeasured()` and `readings_measured` instead.
+Measured on production: the `/us/` window fell to 5,473 rows and `/au/` to 1,132,
+from reading the whole table.
+
 `ROW_BUDGET` in `src/lib/store.ts` is the backstop for what the plan test cannot
 see — a plan that is still correct against a table that has outgrown it. It logs
 and never throws.
+
+### Still exposed
+
+The city page legitimately needs its measured history, because the chart plots
+it, so `/au/{city}/` still reads roughly a thousand rows a render. At a
+five-minute cache and real traffic across 63 city pages that is the next thing
+to run out. The structural fix is to read peaks from the `daily` table — which
+is written on every run and currently read by nothing — and to stop asking for
+84 hours where a day will do.
