@@ -131,6 +131,39 @@ That last part needs a token, and does nothing without one:
 Scope it tightly: this token can start workflows on a public repository.
 Actions: write on one repository is the whole requirement.
 
+## 3d. External uptime monitor — YOUR ACTION
+
+Monitoring has to be external. A Worker that watches itself cannot report that
+it is down, and the Actions backstop runs on GitHub's scheduler, which this
+project measured dropping runs for sixteen hours.
+
+What exists already:
+
+- `/api/health` returns **503** when any source is overdue (ARPANSA past 30
+  minutes, EPA past 3 hours, CAMS past 9) or the dispatch token has stopped
+  working. The status code alone is enough for a monitor.
+- `.github/workflows/health-check.yml` polls it twice an hour and fails, which
+  makes GitHub email the repository owner. Verified against synthetic failures:
+  a silent source, a source that never ran, a lapsed dispatch token, and an
+  unparseable body all make it exit non-zero.
+
+What is missing is a service that checks every few minutes from outside both
+platforms:
+
+1. Sign up at <https://uptimerobot.com/> (free tier: 50 monitors, 5-minute
+   checks, email alerts).
+2. Add monitor one — **HTTP(s)**, URL `https://uvatlas.com/api/health`.
+   The free tier alerts on a non-200 status, which is exactly the signal.
+3. Add monitor two — **HTTP(s)**, URL `https://uvatlas.com/`. This is the one
+   that catches a total outage, which the health endpoint cannot report
+   because it would be down too.
+4. Alert contact: `contact@uvatlas.com`, which already forwards to a verified
+   inbox.
+
+Do not point a monitor at a city page: a single ARPANSA station going quiet
+would page you, and the staleness rule already handles that on the page
+itself.
+
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
 ARPANSA's terms allow free use of the real-time feed with credit, but
