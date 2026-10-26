@@ -16,7 +16,7 @@
  */
 import type { Advice } from "../lib/current";
 import type { Location } from "../lib/locations";
-import { locationsIn } from "../lib/locations";
+import { cityLabel, locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
 import { describeCurve, minutesToClock, protectionWindow } from "../lib/chart";
 import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
@@ -154,6 +154,8 @@ export function CityPage(view: CityView) {
   const { location: loc, reading, now } = view;
   const tz = loc.tz;
   const locale = localeFor(loc.country);
+  // Carries the state for a US city, so the title and H1 say which Portland.
+  const label = cityLabel(loc);
   const band = reading ? bandFor(reading.uvi) : null;
   const window = view.clearSky.length ? protectionWindow(view.clearSky) : null;
   const nearby = locationsIn(loc.country)
@@ -167,12 +169,12 @@ export function CityPage(view: CityView) {
   // oversells its own page is the kind of mismatch Google reads as a reason to
   // rewrite it, and it is a promise this site cannot keep.
   const title = view.measured
-    ? `UV Index ${loc.name} Today: Live Reading and Forecast`
-    : `UV Index ${loc.name} Today: Hourly Forecast and Sun Protection Times`;
+    ? `UV Index ${label} Today: Live Reading and Forecast`
+    : `UV Index ${label} Today: Hourly Forecast`;
   const description = view.measured
-    ? `Live UV index for ${loc.name}, measured by ARPANSA and updated every ` +
+    ? `Live UV index for ${label}, measured by ARPANSA and updated every ` +
       `few minutes, with today's forecast curve and sun protection times.`
-    : `UV index forecast for ${loc.name}: the level now, today's curve, ` +
+    : `UV index forecast for ${label}: the level now, today's curve, ` +
       `tomorrow's peak and sun protection times.`;
   const path = `/${loc.country}/${loc.slug}/`;
 
@@ -186,7 +188,7 @@ export function CityPage(view: CityView) {
       inLanguage: "en-AU",
       about: {
         "@type": "Place",
-        name: loc.name,
+        name: label,
         geo: { "@type": "GeoCoordinates", latitude: loc.lat, longitude: loc.lon },
       },
     },
@@ -196,7 +198,7 @@ export function CityPage(view: CityView) {
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: `${ORIGIN}/` },
         { "@type": "ListItem", position: 2, name: "Australia", item: `${ORIGIN}/au/` },
-        { "@type": "ListItem", position: 3, name: loc.name, item: `${ORIGIN}${path}` },
+        { "@type": "ListItem", position: 3, name: label, item: `${ORIGIN}${path}` },
       ],
     },
   ];
@@ -211,7 +213,7 @@ export function CityPage(view: CityView) {
     >
       <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
 
-      <h1>UV Index {loc.name} today</h1>
+      <h1>UV Index {label} today</h1>
 
       {reading ? (
         <>

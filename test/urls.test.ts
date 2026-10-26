@@ -89,3 +89,16 @@ describe("canonicalRedirect", () => {
     );
   });
 });
+
+describe("files that are not pages", () => {
+  it("leaves the share image alone instead of slashing it", () => {
+    // It was added as a route and not to the allowlist, so it answered 301 to
+    // /og-image.png/ -- a path with no route behind it. Every preview card
+    // would have come up with no picture.
+    expect(canonicalPath("/og-image.png")).toBeNull();
+  });
+
+  it("still slashes a page that merely looks file-ish", () => {
+    expect(canonicalPath("/au/st.kilda")).toBe("/au/st.kilda/");
+  });
+});

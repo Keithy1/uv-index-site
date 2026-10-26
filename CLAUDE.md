@@ -43,6 +43,7 @@ To exercise the cron locally, start `npm run dev` and
 | `src/views/` | Server-rendered templates (Hono JSX) |
 | `fetch/` | Python adapters for the sources a Worker cannot run (EPA, CAMS) |
 | `schema.sql` | D1 schema. There is no `locations` table, on purpose |
+| `docs/seo.md` | **What each page is for**, and the title rules a test enforces |
 
 ## Rules that are easy to break by accident
 
@@ -62,6 +63,9 @@ To exercise the cron locally, start `npm run dev` and
   whether it may be shown as current.
 - **No template may show a reading without its credit.** The credit belongs in
   the same component as the number, so the two cannot be separated.
+- **A title may not promise what the page has not got.** US city pages have no
+  instrument, so they say "Hourly Forecast", not "Live Reading". Fifty of them
+  shipped claiming one. See `docs/seo.md`.
 - **Ads stay off** in `COUNTRIES` until the licence position for that country
   allows them. Australia needs ARPANSA's written authorisation. A test asserts this.
 

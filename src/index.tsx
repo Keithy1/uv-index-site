@@ -10,6 +10,8 @@
  */
 import { Hono } from "hono";
 
+import { OG_IMAGE_BYTES, OG_IMAGE_PATH } from "./assets/og-image";
+
 import { buildCurve } from "./lib/chart";
 import {
   adviceLevel,
@@ -313,6 +315,29 @@ for (const [path, Page] of Object.entries(STATIC_PAGES)) {
     return c.html(<Page />);
   });
 }
+
+/**
+ * The share image.
+ *
+ * Immutable: the bytes are compiled in, so a long cache costs nothing and the
+ * crawlers that fetch this on every share do not reach the origin twice.
+ *
+ * It still picks up the pre-launch `X-Robots-Tag: noindex` from the middleware
+ * above, which is right -- it keeps the image out of Google Images before
+ * launch -- and harmless for sharing, because the social crawlers that render a
+ * preview card do not consult that header.
+ */
+app.get(OG_IMAGE_PATH, () => {
+  // A plain Response rather than c.body: Hono's body() types do not accept a
+  // Uint8Array, and casting the buffer to satisfy them would be the less honest
+  // of the two fixes.
+  return new Response(OG_IMAGE_BYTES, {
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
+});
 
 /** UTC window generous enough to contain any city's local day. */
 function dayWindow(now: Date): { from: string; to: string } {

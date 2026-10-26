@@ -12,6 +12,7 @@ import type { Child } from "hono/jsx";
 
 import { COUNTRIES, liveCountries } from "../lib/locations";
 import type { CountryCode } from "../lib/locations";
+import { OG_IMAGE_PATH } from "../assets/og-image";
 import { ORIGIN, SITE } from "../lib/urls";
 
 export { ORIGIN, SITE } from "../lib/urls";
@@ -81,8 +82,38 @@ export function Layout(props: Props) {
         <meta property="og:title" content={props.title} />
         <meta property="og:description" content={props.description} />
         <meta property="og:url" content={canonical} />
-        <meta name="twitter:card" content="summary" />
+        {/* Without an image a shared link renders as a bare line of text, and
+            "summary" without one renders smaller still. The picture is the same
+            on every page: it is branding, not a per-page preview, so there is
+            nothing to go stale. */}
+        <meta property="og:image" content={`${ORIGIN}${OG_IMAGE_PATH}`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+          property="og:image:alt"
+          content="uvatlas: live UV index, city by city, for Australia and the United States"
+        />
+        <meta name="twitter:card" content="summary_large_image" />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        {/* The publisher, on every page. The design asked for WebSite,
+            Organization and BreadcrumbList; the first and last were there and
+            this was not. No `logo` property: Google wants a square-ish logo for
+            the rich result and we have only the 1200x630 share image, so
+            claiming it as the logo would be worse than leaving it out. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: SITE,
+              url: `${ORIGIN}/`,
+              description:
+                "Live and forecast UV index for cities in Australia and the United States, " +
+                "from ARPANSA, the US EPA and Copernicus.",
+            }),
+          }}
+        />
         {(props.structuredData ?? []).map((data, i) => (
           <script
             key={i}

@@ -34,6 +34,24 @@ export interface Location {
   readonly status: Status;
 }
 
+/**
+ * How a city is named where it has to stand on its own: a title, an H1, a
+ * breadcrumb.
+ *
+ * US cities take their state. "UV Index Portland Today" does not say whether it
+ * means Oregon or Maine, and the same goes for Columbus (OH and GA) and
+ * Arlington (TX and VA) -- the slug has always known (`portland-or`) while the
+ * title did not, so the page neither disambiguated itself nor matched the way
+ * the search is actually typed. Deciding this per city would rot the moment a
+ * second Springfield arrived, so every US city gets its state.
+ *
+ * Australian cities do not: there is one Perth that anyone searches for, and
+ * "Perth, WA" reads like a postal address rather than a place.
+ */
+export function cityLabel(loc: Location): string {
+  return loc.country === "us" && loc.epaState ? `${loc.name}, ${loc.epaState}` : loc.name;
+}
+
 export interface CountrySettings {
   readonly code: CountryCode;
   readonly name: string;
