@@ -1,0 +1,91 @@
+name: health-check
+
+# A backstop monitor that needs no third-party account: when this workflow
+# fails, GitHub emails the repository owner through its own notifications.
+#
+# It is NOT the real monitor, and should not be mistaken for one:
+#
+#   * it runs on GitHub's scheduler, which this project has measured dropping
+#     runs for sixteen hours at a stretch, so a gap in checks proves nothing;
+#   * it cannot reliably report that the site is down right now, only that it
+#     was down when a check happened to run.
+#
+# An external uptime service polling /api/health every few minutes is the
+# proper answer, because it is independent of both Cloudflare and GitHub. This
+# exists so that "no monitoring at all" is not the state in the meantime, and
+# because it catches the slow failures -- a source going quiet, the dispatch
+# token lapsing -- that nobody would otherwise notice for months.
+
+on:
+  schedule:
+    # Every half hour, off the top of the hour. Deliberately more often than
+    # needed, since a proportion of runs will simply not happen.
+    - cron: "11,41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Home page responds
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://uvatlas.com/)
+          echo "home page: HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::uvatlas.com returned HTTP $code" >&2
+            exit 1
+          fi
+
+      - name: Health endpoint
+        id: health
+        run: |
+          # /api/health returns 503 when any source is overdue or the dispatch
+          # token has stopped working, so the status code alone is the signal.
+          # The body is printed either way, because the point of the alert is
+          # to say WHICH source went quiet.
+          code=$(curl -s -o health.json -w "%{http_code}" --max-time 30 \
+            https://uvatlas.com/api/health)
+          echo "health endpoint: HTTP $code"
+          python3 - <<'PY'
+          import json, sys
+          try:
+              d = json.load(open("health.json"))
+          except Exception as exc:
+              print(f"::error::health endpoint returned unparseable JSON: {exc}")
+              sys.exit(1)
+
+          print(f"healthy: {d.get('healthy')}")
+          for s in d.get("sources", []):
+              age = s.get("ageSeconds")
+              age_text = "never run" if age is None else f"{age // 60} min ago"
+              mark = "ok " if s.get("healthy") else "BAD"
+              print(f"  {mark} {s['source']:8} last good {age_text}"
+                    f"{'  ' + s['lastError'] if s.get('lastError') else ''}")
+
+          dis = d.get("dispatch", {})
+          print(f"  {'ok ' if dis.get('healthy') else 'BAD'} dispatch  "
+                f"configured={dis.get('configured')} "
+                f"lastError={dis.get('lastError')}")
+
+          if not d.get("healthy"):
+              bad = [s["source"] for s in d.get("sources", []) if not s.get("healthy")]
+              if not dis.get("healthy"):
+                  bad.append("dispatch")
+              print(f"::error::unhealthy: {', '.join(bad) or 'unknown'}")
+              sys.exit(1)
+          PY
+
+      - name: A city page still renders a reading
+        run: |
+          # The health endpoint can be green while a page is broken, so check
+          # that one actually contains a number and its credit.
+          curl -s --max-time 30 https://uvatlas.com/au/sydney/ -o page.html
+          grep -q "UV observations courtesy of ARPANSA" page.html \
+            || { echo "::error::Sydney page is missing the ARPANSA credit" >&2; exit 1; }
+          grep -qE 'class="n">[0-9]+\.[0-9]' page.html \
+            || { echo "::error::Sydney page shows no reading" >&2; exit 1; }
+          echo "Sydney page renders a reading with its credit"
