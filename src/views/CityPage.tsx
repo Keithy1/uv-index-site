@@ -14,6 +14,7 @@
  *   * a band colour never carries meaning alone — every reading shows the
  *     number and the band word, for contrast and for screen readers.
  */
+import type { Advice } from "../lib/current";
 import type { Location } from "../lib/locations";
 import { locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
@@ -36,6 +37,12 @@ export interface CityView {
   readonly tomorrow: { uvi: number; minutes: number } | null;
   /** True when the forecast came from CAMS, so its credit is required. */
   readonly hasForecast: boolean;
+  /**
+   * The level the advice is for, which is NOT the current reading. See
+   * lib/current.ts: at 12:19 am this page said "no protection needed" beside
+   * its own forecast of 12.1 Extreme later the same day.
+   */
+  readonly advice: Advice | null;
 }
 
 const PAGE_CSS = `
@@ -274,11 +281,30 @@ export function CityPage(view: CityView) {
         </>
       )}
 
-      {reading && (
+      {view.advice && (
         <>
-          <h2>What to do</h2>
+          <h2>
+            {view.advice.scope === "tomorrow" ? "What to do tomorrow" : "What to do today"}
+          </h2>
+          {/* The level this advice is for, stated, because it is deliberately
+              not the reading at the top of the page. */}
+          <p class="small muted">
+            {view.advice.scope === "tomorrow"
+              ? "Tomorrow is forecast to reach "
+              : view.advice.scope === "today"
+                ? "UV is forecast to reach "
+                : "At "}
+            <strong>{formatUvi(view.advice.uvi)}</strong>{" "}
+            <span
+              class="band"
+              style={`background:${bandFor(view.advice.uvi).bg};color:${bandFor(view.advice.uvi).fg}`}
+            >
+              {bandFor(view.advice.uvi).name}
+            </span>
+            {view.advice.scope === "today" ? " later today." : "."}
+          </p>
           <ul class="todo">
-            {whatToDo(reading.uvi).map((line) => (
+            {whatToDo(view.advice.uvi).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>

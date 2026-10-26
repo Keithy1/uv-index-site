@@ -96,3 +96,59 @@ export function nextLocalDay(todayKey: string): string {
     "UTC",
   );
 }
+
+export type AdviceScope = "now" | "today" | "tomorrow";
+
+export interface Advice {
+  /** The level the advice is for. */
+  readonly uvi: number;
+  /** Which period it describes, so the heading can say so. */
+  readonly scope: AdviceScope;
+}
+
+/**
+ * The level sun-protection advice should be based on.
+ *
+ * NOT the current reading. At 12:19 am Alice Springs read 0.0 Low and the page
+ * said "no protection needed for most people" -- while the same page forecast
+ * a peak of 12.1 Extreme later that day. Anyone checking before going out got
+ * advice that was wrong in the dangerous direction, which is the one error
+ * this site must never make.
+ *
+ * So the advice follows the highest level still to come: the rest of today
+ * while any of today remains, tomorrow once today is spent, and the current
+ * reading only when it is itself the highest thing on offer.
+ */
+export function adviceLevel(opts: {
+  /** Current level, measured or forecast. */
+  readonly now: number | null;
+  /** Today's forecast points, in local minutes. */
+  readonly today: readonly { minutes: number; uvi: number }[];
+  /** Tomorrow's peak, if the forecast covers it. */
+  readonly tomorrowPeak: number | null;
+  /** Minutes since local midnight, now. */
+  readonly nowMinutes: number;
+}): Advice | null {
+  const ahead = opts.today.filter((p) => p.minutes >= opts.nowMinutes);
+  const aheadPeak = ahead.length ? Math.max(...ahead.map((p) => p.uvi)) : null;
+  const current = opts.now;
+
+  // Whatever is highest between now and the end of today.
+  const todayBest =
+    aheadPeak === null ? current : current === null ? aheadPeak : Math.max(current, aheadPeak);
+
+  if (todayBest !== null && (current === null || todayBest > current)) {
+    return { uvi: todayBest, scope: "today" };
+  }
+
+  // Nothing left today worth warning about: look to tomorrow, so an evening
+  // visitor is told what they are walking into in the morning.
+  if (
+    opts.tomorrowPeak !== null &&
+    (todayBest === null || opts.tomorrowPeak > todayBest)
+  ) {
+    return { uvi: opts.tomorrowPeak, scope: "tomorrow" };
+  }
+
+  return todayBest === null ? null : { uvi: todayBest, scope: "now" };
+}

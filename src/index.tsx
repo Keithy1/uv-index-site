@@ -12,6 +12,7 @@ import { Hono } from "hono";
 
 import { buildCurve } from "./lib/chart";
 import {
+  adviceLevel,
   currentLevel,
   nextLocalDay,
   peakOnLocalDay,
@@ -445,6 +446,19 @@ app.get("/:country/:slug/", async (c) => {
   // curve and worth drawing. Labelled by describeCurve either way.
   const series = curve.length >= 3 ? curve : measuredPoints;
 
+  // Advice follows the highest level still to come, not the current reading:
+  // at 12:19 am this page said "no protection needed" beside its own forecast
+  // of 12.1 Extreme later the same day.
+  const tomorrowPeak = peakOnLocalDay(
+    pointsOnLocalDay(data.forecastToday, location.tz, nextLocalDay(today)),
+  );
+  const advice = adviceLevel({
+    now: data.latest && !data.latest.stale ? data.latest.uvi : null,
+    today: curve,
+    tomorrowPeak: tomorrowPeak?.uvi ?? null,
+    nowMinutes: localMinutes(now.toISOString(), location.tz),
+  });
+
   c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);
   return c.html(
     <CityPage
@@ -454,8 +468,9 @@ app.get("/:country/:slug/", async (c) => {
       curve={series}
       clearSky={data.clearSkyToday.map(toPoint)}
       geometry={buildCurve(series, latestPoint)}
-      tomorrow={null}
+      tomorrow={tomorrowPeak ? { uvi: tomorrowPeak.uvi, minutes: tomorrowPeak.minutes } : null}
       hasForecast={curve.length > 0}
+      advice={advice}
     />,
   );
 });
