@@ -62,7 +62,13 @@ background:var(--card);padding:8px}
 .countries li{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .countries a.name{font-weight:600;font-size:1.05rem;text-decoration:none}
 .countries a.name:hover{text-decoration:underline}
-.countries .figure{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap}
+.countries .figure{display:flex;align-items:center;gap:3px 10px;margin-top:6px;flex-wrap:wrap}
+/* The caption always takes its own line, so the cards are the same shape
+   whatever it says. Left to wrap on its own, "highest now, forecast ·
+   Miami" broke onto a second line while "highest now · Alice Springs"
+   stayed inline, and the two cards sat at different heights. The length
+   depends on the city name too, so any card can wrap on any day. */
+.countries .figure .muted{flex-basis:100%}
 .countries .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .band{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:600;font-size:.85rem}
 .later{color:var(--muted);font-size:.9rem;margin:12px 0 0}
