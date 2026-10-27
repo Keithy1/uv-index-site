@@ -59,5 +59,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+      # The same packages the fetch jobs install. Without them the CAMS tests
+      # could not import numpy, and this job failed on every push from at
+      # least 26 October while the suite passed on a machine that happened to
+      # have numpy -- a red CI nobody was reading.
+      - name: Install
+        run: pip install -r requirements.txt
       - name: Tests
         run: python -m unittest discover -s fetch/tests -t . -v
