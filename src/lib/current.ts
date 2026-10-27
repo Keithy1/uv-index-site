@@ -15,6 +15,7 @@
  * without a database or a clock.
  */
 import { localDateKey, localMinutes } from "./time";
+import { PROTECTION_THRESHOLD, roundForBand } from "./uv";
 
 export interface ForecastPoint {
   readonly validAt: string;
@@ -115,9 +116,10 @@ export interface Advice {
  * advice that was wrong in the dangerous direction, which is the one error
  * this site must never make.
  *
- * So the advice follows the highest level still to come: the rest of today
- * while any of today remains, tomorrow once today is spent, and the current
- * reading only when it is itself the highest thing on offer.
+ * So the advice follows the highest level still to come today, now included,
+ * for as long as that reaches 3 -- the point at which protection is needed.
+ * Only once the rest of today is below 3 does it turn to tomorrow. "Spent"
+ * means below 3, not merely "lower than tomorrow".
  */
 export function adviceLevel(opts: {
   /** Current level, measured or forecast. */
@@ -137,11 +139,17 @@ export function adviceLevel(opts: {
   const todayBest =
     aheadPeak === null ? current : current === null ? aheadPeak : Math.max(current, aheadPeak);
 
-  if (todayBest !== null && (current === null || todayBest > current)) {
-    return { uvi: todayBest, scope: "today" };
+  // While today still needs protection, the advice is about today. This used
+  // to switch to tomorrow whenever tomorrow's peak beat what was left of today:
+  // at 1:30 pm in Alice Springs, with UV still near 10 and the morning's 12.1
+  // just past, the page said "What to do tomorrow" because tomorrow forecast
+  // 11.3. The switch is meant for the evening, once today is spent -- not for
+  // any afternoon that happens to come after a higher morning.
+  if (todayBest !== null && roundForBand(todayBest) >= PROTECTION_THRESHOLD) {
+    return { uvi: todayBest, scope: current !== null && todayBest <= current ? "now" : "today" };
   }
 
-  // Nothing left today worth warning about: look to tomorrow, so an evening
+  // Nothing left today that needs protection: look to tomorrow, so an evening
   // visitor is told what they are walking into in the morning.
   if (
     opts.tomorrowPeak !== null &&
@@ -150,5 +158,6 @@ export function adviceLevel(opts: {
     return { uvi: opts.tomorrowPeak, scope: "tomorrow" };
   }
 
-  return todayBest === null ? null : { uvi: todayBest, scope: "now" };
+  if (todayBest === null) return null;
+  return { uvi: todayBest, scope: current !== null && todayBest <= current ? "now" : "today" };
 }

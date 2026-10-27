@@ -8,6 +8,7 @@ import {
   peakOnLocalDay,
   pointsOnLocalDay,
 } from "../src/lib/current";
+import { roundForBand } from "../src/lib/uv";
 
 const NOW = new Date("2026-10-26T14:00:00Z");
 const at = (iso: string, uvi: number) => ({ validAt: iso, uvi });
@@ -155,6 +156,44 @@ describe("adviceLevel", () => {
       const a = adviceLevel({ now: 0, today, tomorrowPeak: 1, nowMinutes: h * 60 });
       if (ahead.length === 0) continue;
       expect(a!.uvi, `hour ${h}`).toBeGreaterThanOrEqual(Math.max(...ahead) - 1e-9);
+    }
+  });
+
+  it("stays on today in the afternoon while today still needs protection", () => {
+    // Alice Springs, 27 October, 1:30 pm. The morning's 12.1 had passed; the
+    // instrument read about 10, above the forecast for the rest of the
+    // afternoon; tomorrow forecast 11.3. So the best of today was the reading
+    // itself, tomorrow beat it, and the page said "What to do tomorrow" with
+    // UV at 10. Today is not spent until the rest of it is below 3.
+    const afternoon = [
+      { minutes: 14 * 60, uvi: 9 },
+      { minutes: 15 * 60, uvi: 6.5 },
+      { minutes: 16 * 60, uvi: 3.8 },
+    ];
+    const a = adviceLevel({ now: 10, today: afternoon, tomorrowPeak: 11.3, nowMinutes: 13 * 60 + 30 });
+    expect(a).toEqual({ uvi: 10, scope: "now" });
+  });
+
+  it("turns to tomorrow once the rest of today is below 3", () => {
+    // Late afternoon: still 2.6, which rounds to 3 -- protection still needed.
+    expect(adviceLevel({ now: 2.6, today: [], tomorrowPeak: 11, nowMinutes: 17 * 60 })!.scope)
+      .not.toBe("tomorrow");
+    // A little later: 2.4 rounds to 2, so today is spent.
+    expect(adviceLevel({ now: 2.4, today: [], tomorrowPeak: 11, nowMinutes: 17 * 60 + 30 })!.scope)
+      .toBe("tomorrow");
+  });
+
+  it("never turns to tomorrow while any hour left today is 3 or more", () => {
+    // The property behind both cases above, swept across the day.
+    // The reading runs a little above the forecast all day, as it did in Alice
+    // Springs, so the best of today is often the reading itself -- the case
+    // the old rule got wrong whenever tomorrow forecast higher.
+    const today = day(12);
+    for (let h = 6; h < 21; h++) {
+      const here = today.find((p) => p.minutes === h * 60)?.uvi ?? 0;
+      const now = here + 0.5;
+      const a = adviceLevel({ now, today, tomorrowPeak: 13, nowMinutes: h * 60 + 30 });
+      if (roundForBand(now) >= 3) expect(a!.scope, `hour ${h}`).not.toBe("tomorrow");
     }
   });
 
