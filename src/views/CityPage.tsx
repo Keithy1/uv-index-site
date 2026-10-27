@@ -64,7 +64,7 @@ const PAGE_CSS = `
 background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
 .reading .n{font-size:3.4rem;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;
 letter-spacing:-.03em}
-.band{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
+.band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
 .advice{margin:6px 0 0}
 .delayed{border-left:4px solid #d32010;padding-left:12px;margin:12px 0}
 .chartbox{margin:8px 0 0;border:1px solid var(--line);border-radius:12px;padding:8px;

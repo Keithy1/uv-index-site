@@ -68,7 +68,7 @@ padding:16px;margin:16px 0}
 .lead .n{font-size:2.8rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
 letter-spacing:-.03em}
 .lead .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.band{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
+.band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
 .alert{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:.72rem;
 font-weight:700;letter-spacing:.02em;background:#d32010;color:#fff;vertical-align:middle}
 .mapbox{border:1px solid var(--line);border-radius:12px;background:var(--card);

@@ -10,7 +10,9 @@ import type { Child } from "hono/jsx";
 import { Layout, ORIGIN } from "./Layout";
 
 const PROSE_CSS = `
-.prose{max-width:36rem}
+/* No narrower column of its own: text pages share the site's one column, so
+   every page's edges line up with the header. */
+.prose{max-width:none}
 .prose h2{margin:30px 0 8px;font-size:1.2rem}
 .prose h3{margin:22px 0 6px;font-size:1.02rem}
 .prose p,.prose li{font-size:1.02rem;line-height:1.65}
@@ -23,7 +25,7 @@ font-size:.95rem}
 color:var(--muted)}
 .prose .updated{color:var(--muted);font-size:.875rem;margin-top:-2px}
 .prose .note{border-left:3px solid var(--line);padding-left:14px;color:var(--muted)}
-.band{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:600;
+.band{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-weight:600;
 font-size:.85rem}
 `;
 

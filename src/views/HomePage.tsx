@@ -47,7 +47,7 @@ export interface HomeView {
 }
 
 const PAGE_CSS = `
-.intro{font-size:1.05rem;max-width:34rem}
+.intro{font-size:1.05rem}
 .mapbox{margin:16px 0 8px;border:1px solid var(--line);border-radius:12px;
 background:var(--card);padding:8px}
 .mapbox svg{display:block;width:100%;height:auto}
@@ -70,7 +70,7 @@ background:var(--card);padding:8px}
    depends on the city name too, so any card can wrap on any day. */
 .countries .figure .muted{flex-basis:100%}
 .countries .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.band{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:600;font-size:.85rem}
+.band{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-weight:600;font-size:.85rem}
 .later{color:var(--muted);font-size:.9rem;margin:12px 0 0}
 #hint{display:none;margin:16px 0;padding:12px 14px;border:1px solid var(--line);
 border-left:4px solid var(--link);border-radius:8px;background:var(--card)}

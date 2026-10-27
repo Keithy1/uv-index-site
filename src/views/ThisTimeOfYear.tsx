@@ -17,7 +17,7 @@ import { bandFor, formatUvi } from "../lib/uv";
 export const NORMALS_CSS = `
 .normals{margin:8px 0 4px;padding-left:20px}
 .normals li{margin:3px 0}
-.months{display:block;width:100%;max-width:420px;height:auto;margin:10px 0 2px}
+.months{display:block;width:100%;height:auto;margin:10px 0 2px}
 .months text{font:11px system-ui,sans-serif;fill:var(--muted)}
 .months .now text{fill:var(--fg);font-weight:700}
 `;
