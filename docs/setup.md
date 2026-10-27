@@ -175,10 +175,18 @@ it sits in this domain's DNS.
 Google offered to add the record itself by connecting to the Cloudflare
 account. Declined: one manual record does not need standing account access.
 
-Still to do at launch: flip `SITE_INDEXABLE` to `"true"`, deploy, then submit
-`https://uvatlas.com/sitemap.xml` here. Not before — while the site is
-`noindex` and robots.txt disallows everything, every URL would report as
-blocked. Bing Webmaster Tools can then import this property in one step.
+**Launched 27 October 2026.** `SITE_INDEXABLE` set to `"true"` and deployed;
+every page type checked for a leftover `noindex` (none, and the workers.dev
+preview stays `noindex` as designed); all 71 sitemap URLs fetched 200 first;
+`https://uvatlas.com/sitemap.xml` submitted. Search Console showed "Couldn't
+fetch" straight after submitting -- its usual placeholder before the first
+fetch -- while the same sitemap served 200, `application/xml`, valid XML, to a
+Googlebot user agent. The home page was already in Google's index from before
+launch, "indexed, though blocked by robots.txt"; the live test now reads "Page
+can be indexed".
+
+Next: Bing Webmaster Tools can import this property in one step, and ARPANSA
+is owed the site address (see section 4).
 
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 

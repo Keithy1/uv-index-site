@@ -32,11 +32,15 @@
     // response carries X-Robots-Tag: noindex and robots.txt disallows
     // everything, even on uvatlas.com itself.
     //
-    // It stays off until the site is finished. Google forming its first
+    // It stayed off until the site was finished: Google forming its first
     // impression of the domain from a half-built site -- no home page, no
     // guide, 404s where the internal links point -- is worse than not being
     // indexed, and far slower to undo than it is to cause.
-    "SITE_INDEXABLE": "false"
+    //
+    // Switched on 27 October 2026, after the read-budget fix, the search
+    // phrases audit and Search Console verification. Previews on workers.dev
+    // stay noindex regardless: indexing needs the production host as well.
+    "SITE_INDEXABLE": "true"
   },
 
   // ARPANSA measured readings, every 5 minutes. This is the only cron the Worker owns;
