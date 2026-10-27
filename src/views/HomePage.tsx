@@ -60,6 +60,10 @@ background:var(--card);padding:8px}
 @media (prefers-reduced-motion:reduce){.mapbox a path,.tip{transition:none}}
 .countries{list-style:none;padding:0;margin:16px 0;display:grid;gap:10px}
 .countries li{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+@media (prefers-reduced-motion:no-preference){
+.countries li{transition:transform .15s ease-out,box-shadow .15s ease-out}
+.countries li:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgb(0 0 0/.08)}
+}
 .countries a.name{font-weight:600;font-size:1.05rem;text-decoration:none}
 .countries a.name:hover{text-decoration:underline}
 .countries .figure{display:flex;align-items:center;gap:3px 10px;margin-top:6px;flex-wrap:wrap}

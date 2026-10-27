@@ -81,6 +81,21 @@ font-size:.85rem;color:var(--muted)}
 footer.site a{color:var(--muted)}
 footer.site nav{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
 @media (max-width:420px){h1{font-size:1.45rem}}
+/* Motion, in CSS only and only for those who have not asked for less. The site
+   ships no JavaScript for it: GSAP would have cost about 23 KB, against a
+   budget held for the ad script to come, for effects the browser does itself.
+   Nothing here moves a reading -- a number that counted up through 0.0 to 9.7
+   would spend a moment showing the wrong UV level, on the one page whose job
+   is to show the right one.
+   Page transitions: the header holds still while the page beneath crossfades.
+   Browsers without cross-document view transitions simply navigate. */
+@media (prefers-reduced-motion:no-preference){
+@view-transition{navigation:auto}
+header.site{view-transition-name:site-header}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.18s}
+.lift{transition:transform .15s ease-out,box-shadow .15s ease-out}
+.lift:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgb(0 0 0/.08)}
+}
 `;
 
 export function Layout(props: Props) {

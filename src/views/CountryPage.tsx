@@ -10,6 +10,7 @@
  * and the table below carries the same links as crawlable text.
  */
 import type { CountrySettings, Location } from "../lib/locations";
+import { cityLabel } from "../lib/locations";
 import { localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi } from "../lib/uv";
 import { Layout, ORIGIN } from "./Layout";
@@ -102,9 +103,31 @@ color:var(--muted);user-select:none;white-space:nowrap}
 /* City name on hover. The label never takes pointer events, or it would cover
    neighbouring markers and make them unhoverable -- a real problem where the
    cities are close together. */
+details.citypick{margin:4px 0 12px}
+details.citypick summary{display:inline-block;cursor:pointer;list-style:none;padding:7px 14px;
+border:1px solid var(--line);border-radius:8px;background:var(--card);font-weight:600}
+details.citypick summary::-webkit-details-marker{display:none}
+details.citypick summary::after{content:" ▾";color:var(--muted)}
+details.citypick[open] summary::after{content:" ▴"}
+details.citypick ul{list-style:none;margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);
+border-radius:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:2px 12px}
+details.citypick li a{display:block;padding:4px 2px;text-decoration:none}
+details.citypick li a:hover{text-decoration:underline}
 .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
-.pin circle{cursor:default}
+.pin circle{cursor:default;stroke:var(--bg);stroke-width:1.5}
+.pin text{font-size:7.5px;font-weight:700;text-anchor:middle}
+.tip rect{fill:var(--fg);stroke:var(--bg);stroke-width:.8}
+.tip text{font-size:8.5px;font-weight:600;fill:var(--bg);text-anchor:middle}
 @media (prefers-reduced-motion:reduce){.tip{transition:none}}
+/* Switching Now / Peak today / Tomorrow fades the new markers in rather than
+   swapping them. No script: a CSS animation restarts whenever an element goes
+   from display:none to shown, which is exactly what the view switch does. */
+@media (prefers-reduced-motion:no-preference){
+.mapbox svg>g[class^="m-"]{animation:uv-pins .28s ease-out}
+@keyframes uv-pins{from{opacity:0;transform:translateY(2px)}}
+tbody tr{transition:background-color .12s}
+tbody tr:hover{background:var(--card)}
+}
 table{border-collapse:collapse;width:100%;margin:8px 0}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 /* Column headings only. The city cells are row headers (th scope="row") for
@@ -197,6 +220,44 @@ function switchRules(views: readonly ViewId[]): string {
   return css;
 }
 
+/**
+ * Every city on the page, A to Z, each a link to its own page.
+ *
+ * The table below is sorted by the level now, highest first -- the right order
+ * for "where is it worst", and the wrong one for "how is Tucson": fifty US
+ * cities in an order that changes every hour is a long scroll to find one.
+ * A <details> like the header's Country menu, so it works with JavaScript off.
+ * US cities carry their state, because Portland and Columbus are two places.
+ */
+function CityPicker({ rows }: { rows: readonly CityRow[] }) {
+  const cities = rows
+    .map((r) => r.location)
+    .sort((a, b) => cityLabel(a).localeCompare(cityLabel(b)));
+  return (
+    <details class="citypick">
+      <summary>Choose city</summary>
+      <ul>
+        {cities.map((l) => (
+          <li key={l.id}>
+            <a href={`/${l.country}/${l.slug}/`}>{cityLabel(l)}</a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * A map coordinate to one decimal place.
+ *
+ * Projected coordinates came out to thirteen decimal places
+ * (cx="440.7960170020942"), and with three views of fifty US cities, each a
+ * marker and a tooltip, the map was 101 KB of a 141 KB page -- over the
+ * design's 100 KB. A tenth of a map unit is far below a pixel at any size.
+ * The styling every marker and tooltip repeated now lives in PAGE_CSS once.
+ */
+const r1 = (n: number): number => Math.round(n * 10) / 10;
+
 function MarkerLayer({
   rows,
   map,
@@ -211,7 +272,8 @@ function MarkerLayer({
       {rows.map((r) => {
         const uvi = value(r);
         if (uvi === null) return null;
-        const { x, y } = map.project(r.location.lat, r.location.lon);
+        const p = map.project(r.location.lat, r.location.lon);
+        const x = r1(p.x), y = r1(p.y);
         const band = bandFor(uvi);
         return (
           <g
@@ -220,9 +282,8 @@ function MarkerLayer({
             role="img"
             aria-label={`${r.location.name}: UV ${formatUvi(uvi)} ${band.name}`}
           >
-            <circle cx={x} cy={y} r="6" fill={band.bg} stroke="var(--bg)" stroke-width="1.5" />
-            <text x={x} y={y + 3.2} font-size="7.5" font-weight="700" fill={band.fg}
-              text-anchor="middle">{Math.round(uvi)}</text>
+            <circle cx={x} cy={y} r="6" fill={band.bg} />
+            <text x={x} y={r1(y + 3.2)} fill={band.fg}>{Math.round(uvi)}</text>
           </g>
         );
       })}
@@ -244,20 +305,19 @@ function TipLayer({
       {rows.map((r) => {
         const uvi = value(r);
         if (uvi === null) return null;
-        const { x, y } = map.project(r.location.lat, r.location.lon);
+        const p = map.project(r.location.lat, r.location.lon);
+        const x = r1(p.x), y = r1(p.y);
         const label = `${r.location.name} ${formatUvi(uvi)}`;
         // SVG cannot size a box to its text, so estimate from character
         // count: generous rather than tight, because slightly too wide looks
         // fine and too narrow clips.
-        const width = label.length * 4.6 + 12;
+        const width = r1(label.length * 4.6 + 12);
         const flip = y < 26; // near the top edge, put the label below instead
         const ty = flip ? y + 13 : y - 23;
         return (
           <g key={r.location.id} class={`tip t-${r.location.id}`} aria-hidden="true">
-            <rect x={x - width / 2} y={ty} width={width} height="15" rx="4"
-              fill="var(--fg)" stroke="var(--bg)" stroke-width="0.8" />
-            <text x={x} y={ty + 10.5} font-size="8.5" font-weight="600" fill="var(--bg)"
-              text-anchor="middle">{label}</text>
+            <rect x={r1(x - width / 2)} y={r1(ty)} width={width} height="15" rx="4" />
+            <text x={x} y={r1(ty + 10.5)}>{label}</text>
           </g>
         );
       })}
@@ -499,6 +559,7 @@ export function CountryPage(view: CountryView) {
           ? `UV index today and tomorrow in ${country.name}`
           : `UV index today and tomorrow across ${inProse(country.name)}`}
       </h2>
+      {view.cityPages && <CityPicker rows={rows} />}
       <table>
         <thead>
           <tr>

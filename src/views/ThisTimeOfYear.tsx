@@ -20,6 +20,11 @@ export const NORMALS_CSS = `
 .months{display:block;width:100%;height:auto;margin:10px 0 2px}
 .months text{font:11px system-ui,sans-serif;fill:var(--muted)}
 .months .now text{fill:var(--fg);font-weight:700}
+@media (prefers-reduced-motion:no-preference){
+.months rect{transform-box:fill-box;transform-origin:bottom;
+animation:uv-rise .45s ease-out both;animation-delay:calc(var(--i)*35ms)}
+@keyframes uv-rise{from{transform:scaleY(0)}}
+}
 `;
 
 /** Twelve bars of the median daily peak, this month outlined. Server-drawn. */
@@ -40,7 +45,7 @@ function MonthStrip({ normals, month }: { normals: CityNormals; month: number })
         const h = m ? Math.max(2, Math.min(14, m.median) * scale) : 2;
         const band = m ? bandFor(m.median) : null;
         return (
-          <g key={i} class={i + 1 === month ? "now" : undefined}>
+          <g key={i} class={i + 1 === month ? "now" : undefined} style={`--i:${i}`}>
             <rect x={x} y={base - h} width={bar} height={h} rx="3"
               fill={band ? band.bg : "var(--line)"}
               stroke={i + 1 === month ? "var(--fg)" : "none"} stroke-width="2" />

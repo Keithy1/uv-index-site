@@ -75,6 +75,17 @@ background:var(--card)}
 ul.todo{margin:8px 0;padding-left:20px}
 ul.todo li{margin:4px 0}
 .nearby{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;padding:0;list-style:none}
+/* The day's curve draws left to right, the shading follows, and the latest
+   reading lands last. Without the media query the chart is simply there,
+   fully drawn -- the dasharray only exists inside it. */
+@media (prefers-reduced-motion:no-preference){
+.chartbox .line{stroke-dasharray:1;animation:uv-draw .9s ease-out both}
+.chartbox .area{animation:uv-fade .6s .3s ease-out both}
+.chartbox .now{transform-box:fill-box;transform-origin:center;animation:uv-pop .3s .85s ease-out both}
+@keyframes uv-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes uv-fade{from{opacity:0}}
+@keyframes uv-pop{from{opacity:0;transform:scale(.4)}}
+}
 .nearby a{display:inline-block;padding:6px 12px;border:1px solid var(--line);
 border-radius:999px;text-decoration:none}
 .credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
@@ -151,11 +162,12 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
                 font-weight="700" text-anchor="middle">{l.uvi}</text>
             </g>
           ))}
-          <path d={g.areaPath} fill="var(--link)" opacity="0.14" />
-          <path d={g.linePath} fill="none" stroke="var(--link)" stroke-width="2.5"
-            stroke-linejoin="round" stroke-linecap="round" />
+          <path class="area" d={g.areaPath} fill="var(--link)" opacity="0.14" />
+          {/* pathLength="1", so the draw-in below needs no measuring script. */}
+          <path class="line" d={g.linePath} pathLength="1" fill="none" stroke="var(--link)"
+            stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
           {g.measured && (
-            <circle cx={g.measured.x} cy={g.measured.y} r="5"
+            <circle class="now" cx={g.measured.x} cy={g.measured.y} r="5"
               fill={bandFor(g.measured.uvi).bg} stroke="var(--bg)" stroke-width="2" />
           )}
         </svg>
@@ -376,7 +388,7 @@ export function CityPage(view: CityView) {
           <ul class="nearby">
             {nearby.map((l) => (
               <li key={l.id}>
-                <a href={`/${l.country}/${l.slug}/`}>{l.name}</a>
+                <a class="lift" href={`/${l.country}/${l.slug}/`}>{l.name}</a>
               </li>
             ))}
             <li>

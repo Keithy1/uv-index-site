@@ -75,6 +75,16 @@ To exercise the cron locally, start `npm run dev` and
 
 ## House style
 
-Full HTML from the server, one URL per page, no client framework, under 100 KB a
-page and under 5 KB of JavaScript. Comments explain *why*, especially where a
-rule exists because a source behaved unexpectedly.
+Full HTML from the server, one URL per page, no client framework. Comments
+explain *why*, especially where a rule exists because a source behaved
+unexpectedly.
+
+**Budgets, not constraints.** Under 100 KB a page and under 5 KB of JavaScript
+come from the design doc's performance table (alongside "the reading painted in
+under 1.5 s on a phone"). They are targets, not rules like the two at the top:
+weigh a library on what it does that CSS cannot, rather than refusing it on the
+number. What the JavaScript budget mainly protects now is headroom: AdSense
+alone will add 100 KB or more when ads go on. As of 27 October 2026 the home
+page ships 0.7 KB of script and every other page none; motion is CSS only
+(view transitions, keyframes) and switched off under `prefers-reduced-motion`.
+Never animate a reading.
