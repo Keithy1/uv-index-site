@@ -1,0 +1,62 @@
+name: normals
+
+# Recomputes the "this time of year" figures for every city and commits
+# data/normals.json, which the Worker bundles. See fetch/normals.py.
+#
+# Once a year is plenty: a normal over ten years barely moves when an eleventh
+# arrives. June, because ARPANSA has published the previous year's CSVs by then
+# and NOAA's archive has its previous year too.
+#
+# The commit does NOT redeploy the Worker. Deploys are manual on this project
+# (CI only runs `wrangler deploy --dry-run`), so after this lands, pull and
+# deploy as usual -- until then the site keeps the previous year's normals,
+# which is harmless.
+
+on:
+  workflow_dispatch:
+    inputs:
+      au_years:
+        description: "ARPANSA years, e.g. 2016-2025"
+        required: true
+        default: "2016-2025"
+      us_years:
+        description: "NOAA bulletin years, e.g. 2015-2024"
+        required: true
+        default: "2015-2024"
+  schedule:
+    - cron: "17 3 1 6 *"
+
+permissions:
+  contents: write
+
+jobs:
+  normals:
+    runs-on: ubuntu-latest
+    # ~130 ARPANSA CSVs of ~21 MB each, read and deleted one at a time, then
+    # ~3,650 NOAA bulletins fetched one by one with a pause between them.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      # Standard library only -- no requirements to install.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compute
+        run: >
+          python -m fetch.normals
+          --au-years "${{ inputs.au_years || '2016-2025' }}"
+          --us-years "${{ inputs.us_years || '2015-2024' }}"
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- data/normals.json; then
+            echo "normals unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/normals.json
+          git commit -m "Monthly UV normals, recomputed by the normals workflow"
+          git push

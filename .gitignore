@@ -38,3 +38,4 @@ dev-seed.sql
 # Generated SQL from the fetchers; applied, never committed.
 sql/
 *.grib
+.cache/
