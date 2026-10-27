@@ -9,8 +9,11 @@ import {
   forecastsStale,
   type HealthRow,
   noteMeasured,
+  pruneReadings,
   rebuildForecasts,
+  RETENTION_DAYS,
   saveReadings,
+  SERIES_BEFORE_MS,
   STALE_AFTER_MS,
 } from "../src/lib/store";
 
@@ -38,8 +41,8 @@ function d1(): D1Database {
     }),
     first: async () => db.prepare(sql).get(...(args as never[])) ?? null,
     run: async () => {
-      db.prepare(sql).run(...(args as never[]));
-      return { meta: {} };
+      const r = db.prepare(sql).run(...(args as never[]));
+      return { meta: { changes: Number(r.changes) } };
     },
     exec: () => db.prepare(sql).run(...(args as never[])),
   });
@@ -224,5 +227,41 @@ describe("countryData", () => {
     const rows = await countryData(d1(), ["au-per", "us-miami-fl"], NOW);
     expect([...rows.keys()]).toEqual(["au-per", "us-miami-fl"]);
     expect(rows.get("au-per")).toEqual({ locationId: "au-per", latest: null, forecast: [] });
+  });
+});
+
+describe("retention", () => {
+  /** Every valid_at still in the table, oldest first. */
+  async function remaining(db: D1Database): Promise<string[]> {
+    const { results } = await db
+      .prepare("SELECT valid_at FROM readings ORDER BY valid_at")
+      .all<{ valid_at: string }>();
+    return results.map((r) => r.valid_at);
+  }
+
+  it("keeps a full day more than anything looks back", () => {
+    // The forecast rebuild and a city's chart both reach 36 hours back. Three
+    // days leaves a whole missed prune, or a day-late fetch, of margin. If
+    // either window grows, this is the test that says retention must too.
+    expect(RETENTION_DAYS * 86_400_000).toBeGreaterThanOrEqual(SERIES_BEFORE_MS + 86_400_000);
+  });
+
+  it("removes what is past retention and nothing the site still reads", async () => {
+    const db = d1();
+    await saveReadings(db, [
+      measured("au-per", iso(-24 * RETENTION_DAYS - 1), 3), // past retention
+      measured("au-per", iso(-36), 4), // the oldest anything reads
+      measured("au-per", iso(-1), 5),
+      forecast("au-per", "cams", iso(90), 11), // days ahead: never pruned
+    ]);
+    expect(await pruneReadings(db, NOW)).toBe(1);
+    expect(await remaining(db)).toEqual([iso(-36), iso(-1), iso(90)]);
+  });
+
+  it("leaves the summaries alone, which pages read instead", async () => {
+    const db = d1();
+    await noteMeasured(db, [measured("au-per", iso(-24 * RETENTION_DAYS - 5), 2)]);
+    await pruneReadings(db, NOW);
+    expect((await countryData(db, ["au-per"], NOW)).get("au-per")!.latest).not.toBeNull();
   });
 });

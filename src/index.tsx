@@ -40,9 +40,11 @@ import {
   forecastsStale,
   noteDispatch,
   noteMeasured,
+  pruneReadings,
   readHealth,
   rebuildForecasts,
   recordRun,
+  RETENTION_DAYS,
   STALE_AFTER_MS,
 } from "./lib/store";
 import { localDateKey, localMinutes } from "./lib/time";
@@ -643,6 +645,28 @@ async function refreshSummaries(env: Env, health: Awaited<ReturnType<typeof read
   }
 }
 
+/**
+ * Retention, once a day, in the first run after D1's daily allowances reset.
+ *
+ * The cron fires every five minutes, so exactly one run lands in 00:30-00:35
+ * UTC. Straight after the reset is deliberate: the prune is the one statement
+ * that scans readings, and the start of the allowance day is the one moment it
+ * can never be the thing that tips the day over. A failed or skipped day costs
+ * nothing -- the next day's prune removes both days' rows.
+ *
+ * Its own try, so a failed prune is logged as itself rather than recorded as an
+ * ARPANSA failure by the handler's catch.
+ */
+async function pruneOncePerDay(env: Env, now: Date): Promise<void> {
+  if (now.getUTCHours() !== 0 || now.getUTCMinutes() < 30 || now.getUTCMinutes() >= 35) return;
+  try {
+    const removed = await pruneReadings(env.DB, now);
+    console.log(`retention: removed ${removed} readings older than ${RETENTION_DAYS} days`);
+  } catch (error) {
+    console.error(`retention failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export default {
   fetch: app.fetch,
 
@@ -680,6 +704,7 @@ export default {
           // This cron is reliable, so it watches the clock on GitHub's behalf.
           const health = await readHealth(env.DB);
           await refreshSummaries(env, health);
+          await pruneOncePerDay(env, new Date());
 
           const token = env.GITHUB_DISPATCH_TOKEN;
           if (token) {

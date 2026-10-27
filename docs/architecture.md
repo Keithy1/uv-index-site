@@ -411,9 +411,12 @@ real SQLite and the real schema.
   render on 27 October, bounded by `readings_window` because it is one city and
   a fixed range. Acceptable; it is the next thing to move to `city_now` if it
   ever is not.
-- **Nothing prunes `readings`.** `pruneReadings` exists and is called by
-  nothing, so the "400-day retention" described in earlier notes never ran. With
-  pages off the table that is now a storage question (D1 Free allows 5 GB), not
-  a read-cost one — which leaves room to decide calmly whether to keep our own
-  history at all, given ARPANSA publishes its own on data.gov.au.
+- ~~**Nothing prunes `readings`.**~~ Fixed 27 October. `readings` is now a
+  working table kept for **three days** (`RETENTION_DAYS`), pruned once a day at
+  00:30 UTC, the first cron after D1's allowances reset. The furthest anything
+  looks back is 36 hours, so that is a full day of margin. We decided not to
+  keep our own history: ARPANSA publishes every station at one-minute
+  resolution on data.gov.au, back to 2007 for Brisbane and Sydney, CC BY 2.5 AU,
+  and our copy was five-minutely and a day and a half deep. Historic pages, if
+  they ever come, are built from theirs.
 - **`daily`** is written by the Python fetchers and read by nothing.

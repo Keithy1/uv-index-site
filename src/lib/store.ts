@@ -150,10 +150,43 @@ function charge(name: keyof typeof ROW_BUDGET, meta: { rows_read?: number } | un
   }
 }
 
-/** Delete readings older than the retention window, to keep storage bounded. */
-export async function pruneReadings(db: D1Database, keepDays = 400, now: Date = new Date()): Promise<void> {
+/**
+ * How long a reading is kept: long enough to run the site, and no longer.
+ *
+ * `readings` is a working table, not an archive. The furthest anything looks
+ * back is 36 hours -- a city's chart window and the forecast rebuild -- so
+ * three days keeps a full day's margin for a missed prune or a late fetch.
+ * Forecasts for the days ahead are never touched; the cutoff is by valid_at.
+ *
+ * History was considered and declined on 27 October 2026. ARPANSA publishes
+ * every station at one-minute resolution on data.gov.au, back to 2007 for
+ * Brisbane and Sydney, under CC BY 2.5 AU; our copy was five-minutely and a
+ * day and a half deep. Anything historic is built from theirs. The forecast
+ * accuracy work on /methods/ came from the Copernicus archive, which keeps its
+ * own.
+ *
+ * The notes once claimed a 400-day retention. Nothing called this function, so
+ * it never ran, and the table grew without limit.
+ */
+export const RETENTION_DAYS = 3;
+
+/**
+ * Delete readings past retention. Run once a day from the cron.
+ *
+ * The one statement allowed to scan readings (see test/query-plans.test.ts):
+ * once a day, over a table this function keeps to about three days, it reads
+ * a few tens of thousands of rows -- less than a single home-page render used
+ * to. The deleted rows count against the daily write allowance, roughly one
+ * day's inserts, table and index.
+ */
+export async function pruneReadings(
+  db: D1Database,
+  now: Date = new Date(),
+  keepDays: number = RETENTION_DAYS,
+): Promise<number> {
   const cutoff = toIsoUtc(new Date(now.getTime() - keepDays * 86_400_000));
-  await db.prepare(`DELETE FROM readings WHERE valid_at < ?1`).bind(cutoff).run();
+  const { meta } = await db.prepare(`DELETE FROM readings WHERE valid_at < ?1`).bind(cutoff).run();
+  return (meta as { changes?: number }).changes ?? 0;
 }
 
 export interface SeriesPoint {
@@ -418,7 +451,7 @@ export async function forecastsStale(
  * the series must still cover all of "today" and "tomorrow" in every city's own
  * zone, or a dropped run empties the tomorrow column again.
  */
-const SERIES_BEFORE_MS = 36 * 3600_000;
+export const SERIES_BEFORE_MS = 36 * 3600_000;
 const SERIES_AFTER_MS = 96 * 3600_000;
 
 /**
