@@ -190,3 +190,21 @@ describe("axisLevels", () => {
     for (const max of [4, 6, 8, 10, 12, 14, 16]) expect(axisLevels(max)).toContain(3);
   });
 });
+
+describe("the Now line", () => {
+  it("sits at the current time on the axis", () => {
+    const noon = buildCurve(bell(11), null, 12 * 60)!;
+    const three = buildCurve(bell(11), null, 15 * 60)!;
+    expect(noon.now).not.toBeNull();
+    expect(three.now!.x).toBeGreaterThan(noon.now!.x);
+  });
+
+  it("is absent outside the daylight window, rather than pinned to an edge", () => {
+    expect(buildCurve(bell(11), null, 3 * 60)!.now).toBeNull();
+    expect(buildCurve(bell(11), null, 22 * 60)!.now).toBeNull();
+  });
+
+  it("is absent unless asked for, as on a page with a measured reading", () => {
+    expect(buildCurve(bell(11), { minutes: 12 * 60, uvi: 9 })!.now).toBeNull();
+  });
+});

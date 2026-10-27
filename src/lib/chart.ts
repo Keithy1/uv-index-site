@@ -29,6 +29,12 @@ export interface ChartGeometry {
   readonly thresholdY: number | null;
   /** Where the latest measured reading sits, if there is one. */
   readonly measured: { x: number; y: number; uvi: number } | null;
+  /**
+   * Where now falls on the time axis, for a chart with no measured reading to
+   * mark it. A position only -- a line, never a point on the curve -- so it
+   * cannot be read as a measurement the city does not have.
+   */
+  readonly now: { x: number } | null;
   /** Hour gridlines, already positioned. */
   readonly hours: readonly { x: number; label: string }[];
   /** Labelled UV levels up the left edge, already positioned. */
@@ -56,6 +62,7 @@ function clamp(value: number, low: number, high: number): number {
 export function buildCurve(
   points: readonly CurvePoint[],
   measured: CurvePoint | null = null,
+  nowMinutes: number | null = null,
 ): ChartGeometry | null {
   const visible = points
     .filter((p) => p.minutes >= START_MINUTES && p.minutes <= END_MINUTES)
@@ -105,6 +112,12 @@ export function buildCurve(
     linePath,
     thresholdY: maxUvi >= PROTECTION_THRESHOLD ? y(PROTECTION_THRESHOLD) : null,
     measured: measured ? { x: x(measured.minutes), y: y(measured.uvi), uvi: measured.uvi } : null,
+    // Not clamped: before 5 am or after 8 pm there is no "now" on a daylight
+    // chart, and a line pinned to the edge would claim one.
+    now:
+      nowMinutes !== null && nowMinutes >= START_MINUTES && nowMinutes <= END_MINUTES
+        ? { x: x(nowMinutes) }
+        : null,
     hours,
     peak: { x: x(peakPoint.minutes), y: y(peakPoint.uvi), uvi: peakPoint.uvi, minutes: peakPoint.minutes },
     maxUvi,

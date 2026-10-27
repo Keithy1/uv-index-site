@@ -586,7 +586,9 @@ app.get("/:country/:slug/", async (c) => {
       credit={page.credit}
       curve={series}
       clearSky={data.clearSkyToday.map(toPoint)}
-      geometry={buildCurve(series, latestPoint)}
+      // The Now line only where nothing measured marks the moment: a US city
+      // has no instrument, so its chart had no sign of where the day had got to.
+      geometry={buildCurve(series, latestPoint, page.measured ? null : nowMinutes)}
       tomorrow={tomorrowPeak ? { uvi: tomorrowPeak.uvi, minutes: tomorrowPeak.minutes } : null}
       hasForecast={curve.length > 0}
       advice={advice}

@@ -75,6 +75,10 @@ background:var(--card)}
 ul.todo{margin:8px 0;padding-left:20px}
 ul.todo li{margin:4px 0}
 .nearby{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;padding:0;list-style:none}
+/* Where the day has got to, on a chart with no measured dot to show it. Grey
+   and dashed, in no band colour, so it reads as a time and not a reading. */
+.nowmark line{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3;opacity:.5}
+.nowmark text{font-size:10px;font-weight:600;fill:var(--muted)}
 /* The day's curve draws left to right, the shading follows, and the latest
    reading lands last. Without the media query the chart is simply there,
    fully drawn -- the dasharray only exists inside it. */
@@ -162,6 +166,15 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
                 font-weight="700" text-anchor="middle">{l.uvi}</text>
             </g>
           ))}
+          {g.now && (
+            <g class="nowmark">
+              <line x1={g.now.x} y1={16} x2={g.now.x} y2={g.height - 24} />
+              <text x={g.now.x} y={11}
+                text-anchor={g.now.x > g.width - 40 ? "end" : g.now.x < 48 ? "start" : "middle"}>
+                Now
+              </text>
+            </g>
+          )}
           <path class="area" d={g.areaPath} fill="var(--link)" opacity="0.14" />
           {/* pathLength="1", so the draw-in below needs no measuring script. */}
           <path class="line" d={g.linePath} pathLength="1" fill="none" stroke="var(--link)"
