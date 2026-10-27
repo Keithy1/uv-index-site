@@ -48,10 +48,12 @@ font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
    paragraphs visibly narrower than the boxes above them. 48rem is wide enough
    for the ad and narrow enough that full-width text still reads well. */
 .wrap{max-width:48rem;margin:0 auto;padding:0 16px}
-/* Justified to the column's edges. Hyphenation is what keeps justified text
-   from opening wide gaps between words, most of all on a phone; it uses the
-   page's lang, which is set. */
-main p,main li{text-align:justify;hyphens:auto;-webkit-hyphens:auto}
+/* Justified to the column's edges from tablet width up, with hyphenation to
+   keep the gaps between words small (it uses the page's lang, which is set).
+   Left-aligned on phones: at about 343 px even hyphenated justification left
+   wide gaps on lines with long words -- "The World Health Organization groups
+   the" in the guide -- so a phone gets a ragged right edge instead. */
+@media (min-width:768px){main p,main li{text-align:justify;hyphens:auto;-webkit-hyphens:auto}}
 a{color:var(--link)}
 a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 header.site{border-bottom:1px solid var(--line)}
