@@ -155,18 +155,60 @@ describe("the indexes the page queries depend on", () => {
     expect(steps.join(" ")).not.toMatch(/valid_at[<>]/);
   });
 
-  it("answers the latest-measured query from its own index", () => {
+  it("keeps no index that no query can use", () => {
+    // Both were only ever a write per insert once nothing read through them:
+    // readings_recent because no query named its kinds, readings_measured once
+    // city_now replaced the "newest per station" query it served.
+    expect(SCHEMA).not.toMatch(/CREATE INDEX[^;]*readings_recent/i);
+    expect(SCHEMA).not.toMatch(/CREATE INDEX[^;]*readings_measured/i);
+  });
+});
+
+/** The body of one exported function in store.ts, by name. */
+function body(name: string): string {
+  const start = STORE.indexOf(`export async function ${name}(`);
+  expect(start, `${name} not found in store.ts`).toBeGreaterThan(-1);
+  const next = STORE.indexOf("\nexport ", start + 1);
+  return STORE.slice(start, next === -1 ? undefined : next);
+}
+
+describe("what a page view may cost", () => {
+  /**
+   * The plan tests above prove each query uses its index. They could not catch
+   * the two failures that actually happened, because both were well-indexed:
+   * the home page reading ~6,600 rows to show two numbers, and a "newest per
+   * station" query that grew by thirteen rows every five minutes forever. The
+   * cost was in WHAT the pages read, not how. So the rule is structural.
+   */
+
+  it("lists cities from city_now by primary key, one row each", () => {
+    const listing = body("countryData");
+    expect(listing).toMatch(/FROM city_now/);
+    expect(listing, "a listing page must never read raw readings").not.toMatch(/FROM readings/);
+
     const steps = plan(
       freshDb(),
-      `SELECT location_id, MAX(valid_at) FROM readings WHERE kind = 'measured' GROUP BY location_id`,
+      `SELECT location_id, measured_uvi, measured_at, measured_source, forecast_json
+       FROM city_now WHERE location_id IN (?1, ?2, ?3)`,
     );
-    expect(steps.join(" ")).toContain("readings_measured");
-    expect(steps.filter((s) => /^SCAN readings\b/.test(s))).toEqual([]);
+    expect(steps.join(" ")).toMatch(/SEARCH city_now USING PRIMARY KEY \(location_id=\?\)/);
   });
 
-  it("keeps no index that no query can use", () => {
-    // readings_recent (location_id, kind, valid_at) was dead: nothing filters on
-    // kind together with a location, so it was only ever a write cost.
-    expect(SCHEMA).not.toMatch(/CREATE INDEX[^;]*readings_recent/i);
+  it("reads raw readings for many cities in exactly one place, and not on a page view", () => {
+    // A multi-location read of `readings` is the expensive shape. It is allowed
+    // only in rebuildForecasts, which the cron calls when a forecast lands --
+    // never from a route. Anything else doing it is the old design creeping back.
+    const bulk = queriesInStore().filter(
+      (q) => /FROM readings/i.test(q.sql) && /location_id IN \(/i.test(q.sql),
+    );
+    expect(bulk).toHaveLength(1);
+    expect(body("rebuildForecasts")).toContain(bulk[0]!.sql);
+  });
+
+  it("finds a city's newest measurement without reading readings at all", () => {
+    // noteMeasured writes from the readings already in memory. The query it
+    // replaced grouped every measured row ever stored.
+    expect(body("noteMeasured")).not.toMatch(/FROM readings/);
+    expect(STORE).not.toMatch(/export async function latestMeasured/);
   });
 });

@@ -362,11 +362,58 @@ Capitol Tracker against 100,000, and the edge cache is what keeps page views
 from becoming Worker invocations. Worth knowing before submitting sitemaps:
 crawlers are requests too.
 
-### Still exposed
+### Compute when the data lands, not when the page is viewed (27 October)
 
-The city page legitimately needs its measured history, because the chart plots
-it, so `/au/{city}/` still reads roughly a thousand rows a render. At a
-five-minute cache and real traffic across 63 city pages that is the next thing
-to run out. The structural fix is to read peaks from the `daily` table — which
-is written on every run and currently read by nothing — and to stop asking for
-84 hours where a day will do.
+The indexes fixed *how* pages read. Production numbers the next morning, from
+`wrangler d1 insights`, showed the problem was also *what* they read:
+
+| Query | Rows per run |
+|---|---|
+| Country window, before the indexes | 19,034 |
+| Country window, after | 1,168 |
+| Home page (both countries), after | 9,320 |
+| "Newest measured per station" | 2,366, and growing |
+
+The home page read over nine thousand rows to show two numbers. And the
+"newest per station" query was a correctly indexed `SEARCH` that passed the plan
+test while grouping every measured row ever stored — thirteen more every five
+minutes, forever. Neither was a plan problem, so neither was catchable by one.
+
+Capitol Tracker never had this problem because it has no database in the request
+path at all: a nightly pipeline writes JSON, a generator renders static HTML, and
+history lives in git. Every read happens at build time, where reads are free.
+uvatlas cannot be purely that — it promises "measured four minutes ago" — but the
+expensive part was never freshness. It was recomputing at read time what is
+already known at write time.
+
+So pages now read **`city_now`**: one row per city, by primary key.
+
+- `measured_*` is written by the five-minute ARPANSA cron from the reading it
+  already holds in memory — no read at all. A late station cannot overwrite a
+  newer reading; the upsert refuses it.
+- `forecast_json` is rebuilt when EPA or CAMS deliver, judged from
+  `source_health`, about 26 times a day rather than on every view. It keeps every
+  point, including EPA and CAMS at the same hour, so the pages compute exactly
+  what they did before from a stored copy rather than a fresh query.
+- `summary` is in `/api/health`, recorded on every cron, so forecasts arriving
+  while the rebuild quietly fails shows up as unhealthy.
+
+A listing page now costs one row per city it shows, independent of traffic and
+of the size of `readings`. `test/query-plans.test.ts` enforces the shape rather
+than the plan: `countryData` may not read `readings`, and exactly one statement
+in `store.ts` reads `readings` for many cities — `rebuildForecasts`, which no
+route calls. `test/summary.test.ts` runs the whole write-then-read loop against
+real SQLite and the real schema.
+
+### Still open
+
+- **The city page** reads its own chart window from `readings`: about 470 rows a
+  render on 27 October, bounded by `readings_window` because it is one city and
+  a fixed range. Acceptable; it is the next thing to move to `city_now` if it
+  ever is not.
+- **Nothing prunes `readings`.** `pruneReadings` exists and is called by
+  nothing, so the "400-day retention" described in earlier notes never ran. With
+  pages off the table that is now a storage question (D1 Free allows 5 GB), not
+  a read-cost one — which leaves room to decide calmly whether to keep our own
+  history at all, given ARPANSA publishes its own on data.gov.au.
+- **`daily`** is written by the Python fetchers and read by nothing.

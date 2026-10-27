@@ -37,9 +37,12 @@ import {
   cityData,
   commitResult,
   countryData,
-  latestMeasured,
+  forecastsStale,
   noteDispatch,
+  noteMeasured,
   readHealth,
+  rebuildForecasts,
+  recordRun,
   STALE_AFTER_MS,
 } from "./lib/store";
 import { localDateKey, localMinutes } from "./lib/time";
@@ -122,6 +125,12 @@ const HEALTH_LIMITS_MS: Record<string, number> = {
   arpansa: 30 * 60 * 1000,
   epa: 3 * 60 * 60 * 1000,
   cams: 6 * 60 * 60 * 1000,
+  // city_now, which every listing page reads. Recorded on every cron whether
+  // or not a rebuild was needed, so it measures "the summary is current with
+  // its inputs", not "a forecast arrived" -- that is epa's and cams's job.
+  // Forecasts can arrive perfectly while the rebuild fails, and every page
+  // would quietly serve yesterday's series.
+  summary: 30 * 60 * 1000,
 };
 
 /**
@@ -134,7 +143,6 @@ const HEALTH_LIMITS_MS: Record<string, number> = {
  */
 app.get("/", async (c) => {
   const now = new Date();
-  const { from, to } = dayWindow(now);
   const live = liveCountries();
 
   const headlines: CountryHeadline[] = [];
@@ -145,7 +153,7 @@ app.get("/", async (c) => {
     // countries publish them now; this keeps the next country working on the
     // day its data lands and before its pages do.
     const pool = cities.length > 0 ? cities : locationsIn(country.code);
-    const data = await countryData(c.env.DB, pool.map((l) => l.id), from, to, now);
+    const data = await countryData(c.env.DB, pool.map((l) => l.id), now);
 
     let best:
       | { uvi: number; location: (typeof pool)[number]; forecast: boolean; peak: number }
@@ -389,8 +397,7 @@ app.get("/:country/", async (c) => {
   // fall back to all of them rather than rendering an empty table.
   const live = locationsIn(country).filter((l) => l.status === "live");
   const cities = live.length > 0 ? live : locationsIn(country);
-  const { from, to } = dayWindow(now);
-  const data = await countryData(c.env.DB, cities.map((l) => l.id), from, to, now);
+  const data = await countryData(c.env.DB, cities.map((l) => l.id), now);
 
   const rows: CityRow[] = cities.map((location) => {
     const row = data.get(location.id);
@@ -611,6 +618,31 @@ app.get("/api/countries", (c) =>
   c.json(COUNTRIES.map(({ code, name, status }) => ({ code, name, status }))),
 );
 
+/**
+ * Rebuild the stored forecast series when a newer forecast has landed.
+ *
+ * Every city of every live country, not only those with pages: the home page
+ * falls back to a country's whole list when it publishes no city pages, and a
+ * city missing from city_now is a city that shows no data.
+ *
+ * Its own try, so a failed rebuild is recorded against `summary` and does not
+ * take the dispatch check down with it.
+ */
+async function refreshSummaries(env: Env, health: Awaited<ReturnType<typeof readHealth>>): Promise<void> {
+  const ids = liveCountries().flatMap((c) => locationsIn(c.code).map((l) => l.id));
+  try {
+    const rebuilt = (await forecastsStale(env.DB, health, ids.length))
+      ? await rebuildForecasts(env.DB, ids)
+      : 0;
+    if (rebuilt > 0) console.log(`summary: rebuilt forecast series for ${rebuilt} cities`);
+    await recordRun(env.DB, "summary", { ok: true, records: rebuilt });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`summary rebuild failed: ${message}`);
+    await recordRun(env.DB, "summary", { ok: false, records: 0, error: message });
+  }
+}
+
 export default {
   fetch: app.fetch,
 
@@ -627,6 +659,9 @@ export default {
         try {
           const result = await arpansa.run();
           const written = await commitResult(env.DB, result);
+          // The newest reading per station goes straight into city_now from
+          // memory, so no page ever has to find it by reading readings.
+          await noteMeasured(env.DB, result.readings);
 
           // Three "not published" rejections are the Antarctic stations and are
           // expected; any other rejection means the feed's format may have
@@ -643,9 +678,11 @@ export default {
           // GitHub's scheduler drops runs -- sixteen hours with no CAMS fetch
           // emptied tomorrow's column for ten of thirteen Australian cities.
           // This cron is reliable, so it watches the clock on GitHub's behalf.
+          const health = await readHealth(env.DB);
+          await refreshSummaries(env, health);
+
           const token = env.GITHUB_DISPATCH_TOKEN;
           if (token) {
-            const health = await readHealth(env.DB);
             const decision = shouldDispatch(health, new Date());
             if (decision.dispatch) {
               console.log(`asking Actions to fetch: ${decision.reason}`);

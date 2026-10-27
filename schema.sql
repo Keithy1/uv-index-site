@@ -31,44 +31,60 @@ CREATE TABLE IF NOT EXISTS readings (
   PRIMARY KEY (location_id, source, kind, valid_at)
 ) WITHOUT ROWID;
 
--- The two indexes that keep page rendering off a table scan. They are not an
--- optimisation; without them the site cannot run on D1's free plan at all.
+-- The one index on readings, and why there is only one.
 --
 -- The primary key above is (location_id, source, kind, valid_at), and because
--- the table is WITHOUT ROWID that key IS the table. Every page query filters on
--- location_id and a valid_at range, with nothing said about source or kind --
--- and those two sit in between. SQLite could seek to the location and then had
--- to read every row that location had ever had, against a 400-day retention.
--- One home-page render scanned all 63 cities' entire history. The free plan's
--- daily row-read allowance went in an afternoon and the site answered 500 to
--- everything until midnight UTC.
---
--- Both are covering: the trailing columns are the ones the queries select, so
--- SQLite answers from the index and never looks the row up. Doubling the write
--- cost of a row is worth it when the alternative is reading the table.
---
--- `readings_recent (location_id, kind, valid_at DESC)` used to live here and was
--- dropped: no query filters on kind with a location, so nothing could use it,
--- and an index nothing reads is a write amplification you pay on every insert.
--- test/query-plans.test.ts fails the build if any page query scans a table, so
--- an index that stops being enough is caught before it is deployed.
-
--- Serves today's curve for one city, and the whole table of cities behind a
--- country page and the home page.
+-- the table is WITHOUT ROWID that key IS the table. Queries filter on
+-- location_id and a valid_at range, with nothing said about source -- which
+-- sits in between. SQLite seeked to the location and then read every row that
+-- location had ever had, from a table nothing prunes. One home-page render read
+-- all 63 cities' entire history; the free plan's daily row-read allowance went
+-- in an afternoon on 26 October 2026 and every data page answered 500 until
+-- midnight UTC.
 --
 -- `kind` comes BEFORE valid_at, and every query that uses this index names the
--- kinds it wants. That ordering is the difference between reading a city's
--- forecast and reading its forecast plus 84 hours of five-minutely ARPANSA
--- measurements, of which the country page uses exactly one -- the newest. With
--- valid_at second instead, a kind filter removes rows from the result but not
--- from the count: the range is read first and the rows are discarded after.
+-- kinds it wants. With valid_at second, a kind filter removes rows from the
+-- result but not from the count: the range is read first and the unwanted rows
+-- discarded after. Covering, so SQLite answers from the index alone.
+--
+-- Two others came and went, and both are worth remembering:
+--   * readings_recent (location_id, kind, valid_at DESC) -- nothing used it,
+--     because no query then named its kinds; only ever a write per insert.
+--   * readings_measured (kind, location_id, valid_at DESC, ...) -- served a
+--     "newest reading per station" query that grouped every measured row ever
+--     stored. A valid indexed SEARCH, it passed the plan test, and it read more
+--     every five minutes forever. Replaced by city_now below, which the cron
+--     writes from the reading it already holds.
+--
+-- Pages no longer read this table in bulk at all -- see city_now. What remains
+-- is one city's chart window, bounded by this index, and the forecast rebuild,
+-- which runs when a forecast arrives rather than when a page is viewed.
+-- test/query-plans.test.ts checks every statement in store.ts against this file.
 CREATE INDEX IF NOT EXISTS readings_window
   ON readings (location_id, kind, valid_at, source, uvi, issued_at);
 
--- Serves "the latest measured reading per station", which filters on kind
--- alone and groups by location.
-CREATE INDEX IF NOT EXISTS readings_measured
-  ON readings (kind, location_id, valid_at DESC, uvi, source);
+-- What every page that lists cities reads: one row per city, written when the
+-- data lands, read by primary key.
+--
+-- The lesson from Capitol Tracker, applied inside the one constraint it does
+-- not have. That site does every read at build time and serves files, so it
+-- has no read bill at all; this one promises "measured four minutes ago" and
+-- cannot rebuild every five minutes. But the expensive part was never the
+-- freshness, it was recomputing at read time what is known at write time. So:
+--   * measured_* is written by the five-minute ARPANSA cron, from the reading
+--     in memory, at no read cost;
+--   * forecast_json is rebuilt when EPA or CAMS deliver, about 26 times a day,
+--     as [validAt, uvi] pairs covering 36 hours back to 96 hours ahead.
+-- A page's read cost is the number of cities it shows. It does not grow with
+-- traffic or with the size of readings.
+CREATE TABLE IF NOT EXISTS city_now (
+  location_id        TEXT PRIMARY KEY,
+  measured_uvi       REAL,
+  measured_at        TEXT,                 -- ISO 8601 UTC; staleness is judged at render
+  measured_source    TEXT,
+  forecast_json      TEXT,                 -- [["2026-10-27T03:00:00Z", 5.2], ...]
+  forecast_built_at  TEXT                  -- ISO 8601 UTC
+) WITHOUT ROWID;
 
 -- Per-local-day summary: peak, its time, and the sun-protection window.
 CREATE TABLE IF NOT EXISTS daily (

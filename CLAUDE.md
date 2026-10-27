@@ -63,6 +63,10 @@ To exercise the cron locally, start `npm run dev` and
   whether it may be shown as current.
 - **No template may show a reading without its credit.** The credit belongs in
   the same component as the number, so the two cannot be separated.
+- **Pages read `city_now`, never `readings` in bulk.** Work out a value when the
+  data lands, not when a page is viewed: D1 Free bills rows *examined*, and the
+  daily allowance ran out on 26 October from pages recomputing on every view.
+  `test/query-plans.test.ts` enforces it. See `docs/architecture.md`.
 - **A title may not promise what the page has not got.** US city pages have no
   instrument, so they say "Hourly Forecast", not "Live Reading". Fifty of them
   shipped claiming one. See `docs/seo.md`.
