@@ -7,10 +7,9 @@ name: normals
 # arrives. June, because ARPANSA has published the previous year's CSVs by then
 # and NOAA's archive has its previous year too.
 #
-# The commit does NOT redeploy the Worker. Deploys are manual on this project
-# (CI only runs `wrangler deploy --dry-run`), so after this lands, pull and
-# deploy as usual -- until then the site keeps the previous year's normals,
-# which is harmless.
+# When the figures change, the deploy workflow runs after the commit, so the
+# new normals reach the site without anyone having to remember. Deploys are
+# otherwise by hand on this project; this is the one job that ships its own.
 
 on:
   workflow_dispatch:
@@ -32,6 +31,8 @@ permissions:
 jobs:
   normals:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
     # ~130 ARPANSA CSVs of ~21 MB each, read and deleted one at a time, then
     # ~3,650 NOAA bulletins fetched one by one with a pause between them.
     timeout-minutes: 150
@@ -60,9 +61,11 @@ jobs:
           retention-days: 30
 
       - name: Commit if changed
+        id: commit
         run: |
           if git diff --quiet -- data/normals.json; then
             echo "normals unchanged"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -74,3 +77,13 @@ jobs:
           # touches data/normals.json, so a rebase onto the new main is clean.
           git pull --rebase origin main
           git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  # Ships the new figures. Tests run first inside deploy.yml, and
+  # test/normals.test.ts checks the committed file, so a bad recompute is
+  # stopped before it reaches a page.
+  deploy:
+    needs: normals
+    if: needs.normals.outputs.changed == 'true'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
