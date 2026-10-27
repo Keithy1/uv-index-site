@@ -60,10 +60,21 @@ empty. Note for next time: `wrangler d1 delete <name>` resolves the name
 against `wrangler.jsonc`, so with a placeholder id in there it fails — pass the
 UUID instead.
 
-## 3. Cloudflare API token — blocks automatic deploys
+## 3. Cloudflare API token — DONE (25 October; deploys proven 27 October)
 
-Cloudflare dashboard → My Profile → API Tokens → Create Token → **Edit
-Cloudflare Workers** template. Then:
+Stored as GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+Proven able to deploy on 27 October 2026, when `.github/workflows/deploy.yml`
+ran by hand, passed its 224 tests and shipped version `ebc7108e`.
+
+Deploys are still by hand day to day (`npx wrangler deploy`). The one
+automatic deploy is the yearly normals run (June), which calls `deploy.yml`
+only when the figures change -- so new "this time of year" numbers reach the
+site without anyone having to remember. `deploy.yml` can also be run from the
+Actions tab. If the token is ever replaced, it needs Workers deploy rights as
+well as D1, or June's run will compute and commit but not ship.
+
+To recreate it: Cloudflare dashboard → My Profile → API Tokens → Create Token
+→ **Edit Cloudflare Workers** template. Then:
 
 ```sh
 gh secret set CLOUDFLARE_API_TOKEN --repo Keithy1/uv-index-site
