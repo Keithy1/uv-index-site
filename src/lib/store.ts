@@ -189,6 +189,25 @@ export async function pruneReadings(
   return (meta as { changes?: number }).changes ?? 0;
 }
 
+/**
+ * One forecast point per instant: the higher where two sources both forecast it.
+ *
+ * Every US city has two forecasts for most hours -- EPA's, in whole numbers,
+ * and CAMS's, in decimals. Kept side by side, the city chart drew both at the
+ * same x and its line dropped vertically every hour, a sawtooth across every
+ * US city page whenever EPA covered the day. The higher of the two, because
+ * the country table's "peak today" already took it, so the chart, the peak and
+ * the level now all agree -- and because the error to avoid is the low one.
+ */
+export function higherPerInstant<T extends { validAt: string; uvi: number }>(points: readonly T[]): T[] {
+  const best = new Map<string, T>();
+  for (const p of points) {
+    const seen = best.get(p.validAt);
+    if (!seen || p.uvi > seen.uvi) best.set(p.validAt, p);
+  }
+  return [...best.values()].sort((a, b) => a.validAt.localeCompare(b.validAt));
+}
+
 export interface SeriesPoint {
   readonly validAt: string;
   readonly uvi: number;
@@ -271,7 +290,7 @@ export async function cityData(
   return {
     latest,
     measuredToday: measured,
-    forecastToday: forecast,
+    forecastToday: higherPerInstant(forecast),
     forecastTomorrow: [],
     clearSkyToday: clearSky,
   };
@@ -506,14 +525,16 @@ export async function rebuildForecasts(
     .all<{ location_id: string; valid_at: string; uvi: number }>();
   charge("forecastRebuild", meta);
 
-  // Every point is kept, including EPA and CAMS forecasting the same US hour.
-  // Collapsing them would quietly change the pages: today's peak is the higher
-  // of the two, and the level now is the first at the nearest instant. Keeping
-  // both, in a fixed order, means the series is exactly what the pages used to
-  // read from `readings`, only stored rather than recomputed.
+  // One point per instant, the higher of EPA and CAMS where both forecast the
+  // same US hour -- the same rule as the city chart (see higherPerInstant), so
+  // a listing page's "now" and "peak today" match the city page's.
+  const byCity = new Map<string, { validAt: string; uvi: number }[]>();
+  for (const id of locationIds) byCity.set(id, []);
+  for (const r of results) byCity.get(r.location_id)?.push({ validAt: r.valid_at, uvi: r.uvi });
   const series = new Map<string, [string, number][]>();
-  for (const id of locationIds) series.set(id, []);
-  for (const r of results) series.get(r.location_id)?.push([r.valid_at, r.uvi]);
+  for (const [id, points] of byCity) {
+    series.set(id, higherPerInstant(points).map((p): [string, number] => [p.validAt, p.uvi]));
+  }
 
   // EPA's UV Alert arrives in the same run as its forecast, so it is carried
   // into city_now here rather than read by the page. Local dates, so the page

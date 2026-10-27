@@ -41,13 +41,14 @@ const CSS = `
 body{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 -webkit-text-size-adjust:100%}
-/* One column for everything: text, charts, maps and tables share the same
-   edges. It was 44rem (two-thirds of a 1920 px screen left as margin, and too
-   narrow for the standard 728 px in-page ad -- ads go in the flow, never
-   beside a reading), then 64rem with text held back at 44rem, which left
-   paragraphs visibly narrower than the boxes above them. 48rem is wide enough
-   for the ad and narrow enough that full-width text still reads well. */
-.wrap{max-width:48rem;margin:0 auto;padding:0 16px}
+/* One column, 64rem, and on the data pages text runs the full width of the
+   boxes. It has been three widths: 44rem left two-thirds of a 1920 px screen
+   as margin and could not carry the standard 728 px in-page ad (ads go in the
+   flow, never beside a reading); 64rem with paragraphs held at 44rem left text
+   visibly narrower than the charts above it; 48rem for everything pulled the
+   whole page back into the middle. The text-only pages keep a reading column
+   of their own -- see Prose.tsx. */
+.wrap{max-width:64rem;margin:0 auto;padding:0 16px}
 /* Justified to the column's edges from tablet width up, with hyphenation to
    keep the gaps between words small (it uses the page's lang, which is set).
    Left-aligned on phones: at about 343 px even hyphenated justification left

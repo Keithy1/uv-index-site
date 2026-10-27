@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Reading } from "../src/lib/records";
 import {
+  cityData,
   countryData,
   forecastsStale,
   type HealthRow,
@@ -144,17 +145,37 @@ describe("rebuildForecasts", () => {
     ]);
   });
 
-  it("keeps both sources at the same hour, so today's peak is still the higher", async () => {
-    // Collapsing EPA and CAMS at one instant would have changed the peak the
-    // pages show. The series must be what the pages used to read, verbatim.
+  it("keeps one point per hour, the higher of two sources", async () => {
+    // Two at one instant made the city chart's line drop vertically every
+    // hour. The higher, so today's peak is unchanged and the chart agrees.
     const db = d1();
     await saveReadings(db, [
       forecast("us-miami-fl", "cams", iso(1), 5.1),
       forecast("us-miami-fl", "epa", iso(1), 7.0),
+      forecast("us-miami-fl", "epa", iso(2), 4.0),
+      forecast("us-miami-fl", "cams", iso(2), 4.6),
     ]);
     await rebuildForecasts(db, ["us-miami-fl"], NOW);
-    const uvis = (await countryData(db, ["us-miami-fl"], NOW)).get("us-miami-fl")!.forecast.map((p) => p.uvi);
-    expect(uvis).toEqual([5.1, 7.0]);
+    expect((await countryData(db, ["us-miami-fl"], NOW)).get("us-miami-fl")!.forecast).toEqual([
+      { validAt: iso(1), uvi: 7.0 },
+      { validAt: iso(2), uvi: 4.6 },
+    ]);
+  });
+
+  it("gives the city chart one point per hour too", async () => {
+    // The sawtooth itself: El Paso, 26 October, EPA and CAMS at every hour.
+    const db = d1();
+    await saveReadings(db, [
+      forecast("us-el-paso-tx", "cams", iso(0), 5.79),
+      forecast("us-el-paso-tx", "epa", iso(0), 5),
+      forecast("us-el-paso-tx", "cams", iso(1), 3.45),
+      forecast("us-el-paso-tx", "epa", iso(1), 4),
+    ]);
+    const city = await cityData(db, "us-el-paso-tx", iso(-24), iso(24), NOW);
+    expect(city.forecastToday.map((p) => [p.validAt, p.uvi])).toEqual([
+      [iso(0), 5.79],
+      [iso(1), 4],
+    ]);
   });
 
   it("does not let a forecast rebuild disturb the measured reading", async () => {

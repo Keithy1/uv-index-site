@@ -10,9 +10,9 @@ import type { Child } from "hono/jsx";
 import { Layout, ORIGIN } from "./Layout";
 
 const PROSE_CSS = `
-/* No narrower column of its own: text pages share the site's one column, so
-   every page's edges line up with the header. */
-.prose{max-width:none}
+/* A reading column of its own. These pages are text, with no charts to match,
+   and at the site's 64rem a paragraph runs to about 130 characters a line. */
+.prose{max-width:48rem}
 .prose h2{margin:30px 0 8px;font-size:1.2rem}
 .prose h3{margin:22px 0 6px;font-size:1.02rem}
 .prose p,.prose li{font-size:1.02rem;line-height:1.65}
