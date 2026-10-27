@@ -12,7 +12,7 @@ import type { Child } from "hono/jsx";
 
 import { COUNTRIES, liveCountries } from "../lib/locations";
 import type { CountryCode } from "../lib/locations";
-import { OG_IMAGE_PATH } from "../assets/og-image";
+import { LOGO_PATH, MARK_PATH, OG_IMAGE_PATH } from "../assets/brand";
 import { ORIGIN, SITE } from "../lib/urls";
 
 export { ORIGIN, SITE } from "../lib/urls";
@@ -31,11 +31,11 @@ interface Props {
 
 const CSS = `
 :root{color-scheme:light dark;--bg:#fff;--fg:#16181d;--muted:#5b6370;--line:#dfe3e9;
---card:#f6f7f9;--link:#0b57d0;--focus:#0b57d0}
+--card:#f6f7f9;--link:#0b57d0;--focus:#0b57d0;--gold:#a36d00}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171b;--fg:#e9ecf1;
---muted:#9aa4b2;--line:#2c313a;--card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8}}
+--muted:#9aa4b2;--line:#2c313a;--card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8;--gold:#f0b429}}
 :root[data-theme="dark"]{--bg:#15171b;--fg:#e9ecf1;--muted:#9aa4b2;--line:#2c313a;
---card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8}
+--card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8;--gold:#f0b429}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -46,7 +46,10 @@ a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-off
 header.site{border-bottom:1px solid var(--line)}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;
 gap:12px;padding-top:12px;padding-bottom:12px}
-header.site a.brand{font-weight:700;text-decoration:none;color:var(--fg);letter-spacing:-.01em}
+header.site a.brand{font-weight:700;text-decoration:none;color:var(--fg);letter-spacing:-.01em;
+display:inline-flex;align-items:center;gap:8px}
+header.site a.brand img{display:block}
+header.site a.brand .uv{color:var(--gold)}
 details.country{position:relative}
 details.country summary{cursor:pointer;list-style:none;padding:6px 10px;
 border:1px solid var(--line);border-radius:8px;font-size:.9rem}
@@ -93,15 +96,14 @@ export function Layout(props: Props) {
         <meta property="og:image:height" content="630" />
         <meta
           property="og:image:alt"
-          content="uvatlas: live UV index, city by city, for Australia and the United States"
+          content="uvatlas: a globe with the sun breaking over its edge, and the words Live UV index, city by city, for Australia and the United States"
         />
         <meta name="twitter:card" content="summary_large_image" />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
         {/* The publisher, on every page. The design asked for WebSite,
-            Organization and BreadcrumbList; the first and last were there and
-            this was not. No `logo` property: Google wants a square-ish logo for
-            the rich result and we have only the 1200x630 share image, so
-            claiming it as the logo would be worse than leaving it out. */}
+            Organization and BreadcrumbList. `logo` arrived with the artwork:
+            Google wants a square-ish logo, and until there was one, claiming
+            the 1200x630 share card would have been worse than leaving it out. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -110,6 +112,7 @@ export function Layout(props: Props) {
               "@type": "Organization",
               name: SITE,
               url: `${ORIGIN}/`,
+              logo: `${ORIGIN}${LOGO_PATH}`,
               description:
                 "Live and forecast UV index for cities in Australia and the United States, " +
                 "from ARPANSA, the US EPA and Copernicus.",
@@ -127,8 +130,14 @@ export function Layout(props: Props) {
       <body>
         <header class="site">
           <div class="wrap">
+            {/* The name stays real text -- sharp at any size, almost free,
+                and readable by a search engine -- styled after the artwork's
+                wordmark. The globe beside it is decorative, so alt="". */}
             <a class="brand" href="/">
-              {SITE}
+              <img src={MARK_PATH} width="28" height="28" alt="" />
+              <span>
+                <span class="uv">uv</span>atlas
+              </span>
             </a>
             {/* <details> so the menu works with JavaScript switched off. */}
             <details class="country">

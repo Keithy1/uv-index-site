@@ -95,7 +95,7 @@ describe("files that are not pages", () => {
     // It was added as a route and not to the allowlist, so it answered 301 to
     // /og-image.png/ -- a path with no route behind it. Every preview card
     // would have come up with no picture.
-    expect(canonicalPath("/og-image.png")).toBeNull();
+    expect(canonicalPath("/og-image.jpg")).toBeNull();
   });
 
   it("still slashes a page that merely looks file-ish", () => {

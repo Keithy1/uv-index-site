@@ -11,7 +11,14 @@
 import { Hono } from "hono";
 
 import { FAVICON_BYTES, FAVICON_PATH, TOUCH_ICON_BYTES, TOUCH_ICON_PATH } from "./assets/icons";
-import { OG_IMAGE_BYTES, OG_IMAGE_PATH } from "./assets/og-image";
+import {
+  LOGO_BYTES,
+  LOGO_PATH,
+  MARK_BYTES,
+  MARK_PATH,
+  OG_IMAGE_BYTES,
+  OG_IMAGE_PATH,
+} from "./assets/brand";
 
 import { buildCurve } from "./lib/chart";
 import {
@@ -363,20 +370,15 @@ for (const [path, Page] of Object.entries(STATIC_PAGES)) {
  * launch -- and harmless for sharing, because the social crawlers that render a
  * preview card do not consult that header.
  */
-app.get(OG_IMAGE_PATH, () => {
-  // A plain Response rather than c.body: Hono's body() types do not accept a
-  // Uint8Array, and casting the buffer to satisfy them would be the less honest
-  // of the two fixes.
-  return new Response(OG_IMAGE_BYTES, {
-    headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
-  });
-});
-
-/** The icons, immutable for the same reason as the share image. */
+// Every compiled-in file, in one table so a new one cannot be served with the
+// wrong type. A plain Response rather than c.body: Hono's body() types do not
+// accept a Uint8Array, and casting the buffer to satisfy them would be the less
+// honest of the two fixes. Each path must also be in FILE_PATHS (lib/urls.ts),
+// or it is given a trailing slash and 301'd into nothing.
 for (const [path, bytes, type] of [
+  [OG_IMAGE_PATH, OG_IMAGE_BYTES, "image/jpeg"],
+  [LOGO_PATH, LOGO_BYTES, "image/jpeg"],
+  [MARK_PATH, MARK_BYTES, "image/webp"],
   [FAVICON_PATH, FAVICON_BYTES, "image/x-icon"],
   [TOUCH_ICON_PATH, TOUCH_ICON_BYTES, "image/png"],
 ] as const) {

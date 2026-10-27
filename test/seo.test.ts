@@ -96,7 +96,7 @@ describe("the head every page carries", () => {
 
   it("names a share image with its size, so a shared link is not a bare line", () => {
     for (const h of pages) {
-      expect(h).toContain('property="og:image" content="https://uvatlas.com/og-image.png"');
+      expect(h).toContain('property="og:image" content="https://uvatlas.com/og-image.jpg"');
       expect(h).toContain('content="1200"');
       expect(h).toContain('content="630"');
       expect(h).toContain('name="twitter:card" content="summary_large_image"');
@@ -106,6 +106,8 @@ describe("the head every page carries", () => {
   it("declares the publisher and the breadcrumb trail", () => {
     for (const h of pages) {
       expect(h).toContain('"@type":"Organization"');
+      // Square, so Google can show it beside the site's results.
+      expect(h).toContain('"logo":"https://uvatlas.com/logo.jpg"');
       expect(h).toContain('"@type":"BreadcrumbList"');
     }
   });
@@ -141,7 +143,9 @@ describe("the share image is reachable", () => {
   it("is not given a trailing slash and redirected into nothing", () => {
     // It was: added as a route but not to FILE_PATHS, so it 301'd to
     // /og-image.png/, and every preview card would have had no picture.
-    expect(canonicalPath("/og-image.png")).toBeNull();
+    expect(canonicalPath("/og-image.jpg")).toBeNull();
+    expect(canonicalPath("/logo.jpg")).toBeNull();
+    expect(canonicalPath("/mark.webp")).toBeNull();
   });
 });
 

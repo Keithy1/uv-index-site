@@ -23,5 +23,6 @@ def draw(size: int) -> Image.Image:
 
 largest = draw(max(SIZES))
 largest.save("tools/favicon.ico", sizes=[(s, s) for s in SIZES], append_images=[draw(s) for s in SIZES])
-draw(180).convert("RGB").save("tools/apple-touch-icon.png", optimize=True)
-print("tools/favicon.ico, tools/apple-touch-icon.png")
+# The home-screen icon is cut from the logo artwork by tools/brand.py now;
+# writing it here too would silently overwrite that one.
+print("tools/favicon.ico")

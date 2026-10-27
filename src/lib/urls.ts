@@ -23,9 +23,11 @@ const FILE_PATHS = new Set([
   "/favicon.ico",
   // An allowlist, not a "has a dot" rule, so a city called St. Kilda could
   // never lose its trailing slash. The cost is that a new file has to be added
-  // here: /og-image.png was served, then 301'd to /og-image.png/, which is not
+  // here: the share image was served, then 301'd to /og-image.png/, which is not
   // a route -- so every share preview would have had a broken picture.
-  "/og-image.png",
+  "/og-image.jpg",
+  "/logo.jpg",
+  "/mark.webp",
   "/apple-touch-icon.png",
 ]);
 
