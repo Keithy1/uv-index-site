@@ -32,6 +32,8 @@ function view(location: typeof AU, measured: boolean): CityView {
     measured,
     credit: measured ? "arpansa" : "epa",
     advice: { uvi: 7.4, scope: "now" },
+    normals: null,
+    month: 10,
   };
 }
 
@@ -140,5 +142,14 @@ describe("the share image is reachable", () => {
     // It was: added as a route but not to FILE_PATHS, so it 301'd to
     // /og-image.png/, and every preview card would have had no picture.
     expect(canonicalPath("/og-image.png")).toBeNull();
+  });
+});
+
+describe("the forecast timestamp", () => {
+  it("says it is the current hour, on the city's own clock", () => {
+    // Read from another zone, "Forecast for 6:00 PM PDT on Monday, October 26"
+    // looked like a stale date, or the time the forecast was issued.
+    const h = html(view(US, false)).replace(/<!--.*?-->/gs, "");
+    expect(h).toMatch(/Hourly forecast for [^<]+, the current hour in Portland \(/);
   });
 });

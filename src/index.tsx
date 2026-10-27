@@ -48,6 +48,7 @@ import {
   RETENTION_DAYS,
   STALE_AFTER_MS,
 } from "./lib/store";
+import { normalsFor } from "./lib/normals";
 import { localDateKey, localMinutes } from "./lib/time";
 import * as arpansa from "./sources/arpansa";
 import { CityPage } from "./views/CityPage";
@@ -587,6 +588,8 @@ app.get("/:country/:slug/", async (c) => {
       tomorrow={tomorrowPeak ? { uvi: tomorrowPeak.uvi, minutes: tomorrowPeak.minutes } : null}
       hasForecast={curve.length > 0}
       advice={advice}
+      normals={normalsFor(location.id)}
+      month={Number(today.slice(5, 7))}
     />,
   );
 });

@@ -107,7 +107,9 @@ describe("the pages sitemap", () => {
   });
 
   it("dates the text pages when they were edited, not today", () => {
-    expect(xml).toContain("<lastmod>2026-10-25</lastmod>");
+    expect(xml).toContain("<loc>https://uvatlas.com/uv-index-explained/</loc><lastmod>2026-10-25</lastmod>");
+    // Each page carries its own date: editing /methods/ does not re-date the guide.
+    expect(xml).toContain("<loc>https://uvatlas.com/methods/</loc><lastmod>2026-10-27</lastmod>");
     // The home page carries live data, so it is dated today.
     expect(xml).toContain(`<loc>https://uvatlas.com/</loc><lastmod>${todayUtc(AT)}`);
   });

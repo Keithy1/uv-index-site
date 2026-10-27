@@ -68,15 +68,16 @@ nothing.
 
 ## Still open
 
-- **"This time of year"** — the typical peak for this month in this city, from
-  ARPANSA's historical datasets. The design calls it the differentiator ("no
-  competitor shows this") and it is the main reason city pages sit at about 280
-  words, the thinnest on the site, while competing for the terms the research
-  picked us to win. `fetch/arpansa_history.py` reads the data; nothing computes
-  or stores the normals yet.
+- ~~**"This time of year"**~~ Built 27 October 2026, for both countries.
+  Australia from ARPANSA's measurements; the US from NOAA's archived noon
+  forecasts, which cover 36 of the 50 cities (30 directly, 6 within 60 km of a
+  bulletin city). The other 14 have no long, licensed record near enough, and
+  their pages stay thinner -- Tucson, San Diego, Austin, San Antonio, El Paso,
+  Fresno, Sacramento, San Jose, Nashville, Charlotte, Columbus, Kansas City,
+  Tulsa, Colorado Springs. See fetch/normals.py.
 - **The home page** is about 120 words, has no H2, and never uses the word
   "map" while nominally targeting "uv index map". Low priority: see the bet.
-- **No favicon**, so `/favicon.ico` 404s despite being in `FILE_PATHS`.
+- ~~**No favicon**~~ Added 27 October 2026, with a real 404 page.
 - **`SITE_INDEXABLE` is still `"false"`**, so every page carries
   `X-Robots-Tag: noindex, nofollow`. Nothing above matters until it is flipped
   and the sitemaps are submitted.

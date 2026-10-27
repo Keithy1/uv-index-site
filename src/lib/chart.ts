@@ -31,6 +31,8 @@ export interface ChartGeometry {
   readonly measured: { x: number; y: number; uvi: number } | null;
   /** Hour gridlines, already positioned. */
   readonly hours: readonly { x: number; label: string }[];
+  /** Labelled UV levels up the left edge, already positioned. */
+  readonly levels: readonly { y: number; uvi: number }[];
   /** The peak, for labelling. */
   readonly peak: { x: number; y: number; uvi: number; minutes: number } | null;
   readonly maxUvi: number;
@@ -98,6 +100,7 @@ export function buildCurve(
   return {
     width: WIDTH,
     height: HEIGHT,
+    levels: axisLevels(maxUvi).map((uvi) => ({ y: y(uvi), uvi })),
     areaPath,
     linePath,
     thresholdY: maxUvi >= PROTECTION_THRESHOLD ? y(PROTECTION_THRESHOLD) : null,
@@ -106,6 +109,22 @@ export function buildCurve(
     peak: { x: x(peakPoint.minutes), y: y(peakPoint.uvi), uvi: peakPoint.uvi, minutes: peakPoint.minutes },
     maxUvi,
   };
+}
+
+/**
+ * The UV levels labelled on the vertical axis.
+ *
+ * The WHO band boundaries -- 0, 3, 6, 8, 11 -- rather than even steps, so the
+ * axis reads in the same terms as the coloured bands everywhere else on the
+ * site: a curve crossing the 8 line is crossing into Very High. The axis once
+ * labelled only the 3, and a reader could not tell whether the peak was 7 or
+ * 12. The top of the scale is labelled too when it is clear of the last
+ * boundary, so the height of the chart always has a number on it.
+ */
+export function axisLevels(maxUvi: number): number[] {
+  const levels = [0, 3, 6, 8, 11].filter((v) => v <= maxUvi);
+  if (maxUvi - levels[levels.length - 1]! >= 2) levels.push(maxUvi);
+  return levels;
 }
 
 /** Minutes since midnight as "12:20 pm", for chart labels and summaries. */

@@ -21,7 +21,7 @@ export function Methods() {
         "forecast has measured out to be."
       }
       path="/methods/"
-      updated="25 October 2026"
+      updated="27 October 2026"
     >
       <p>
         Every figure on this site comes from one of four sources. This page says
@@ -133,6 +133,37 @@ export function Methods() {
         all rather than a boundary being presented as a crossing.
       </p>
 
+      <h2>This time of year</h2>
+      <p>
+        Each city page says how high UV usually gets there in the current month:
+        the typical daily peak, and how often the day reached 3 or more (when
+        sun protection is needed), 8 or more (Very High) and 11 or more
+        (Extreme). The two countries' figures come from different kinds of
+        record, and each page says which.
+      </p>
+      <p>
+        <strong>Australia</strong> uses ARPANSA's own measurements, published
+        at one-minute resolution on data.gov.au, over the last ten complete
+        years. A day's peak is its highest five-minute average, which follows
+        the five-minutely readings shown live and is not thrown by a single
+        minute's spike at the edge of a cloud. A day counts only if the
+        instrument covered the middle of it, from 10 am to 2 pm.
+      </p>
+      <p>
+        <strong>The United States</strong> has no long, freely licensed record
+        of measured UV for its cities, so the figures come from NOAA's daily UV
+        Index bulletin: the noon forecast for about 58 cities, issued the day
+        before and archived by NOAA's Climate Prediction Center since 1994.
+        They are forecasts, with cloud taken into account, not measurements. A
+        city within 60 km of a bulletin city uses that city's forecasts and says
+        so; a city further than that from any has no figures, rather than
+        another city's.
+      </p>
+      <p>
+        A month is published only with at least 60 valid days behind it — about
+        two years' worth. The counts use the same rounding as the bands below.
+      </p>
+
       <h2>Bands</h2>
       <p>
         Readings are shown exactly as published, to one decimal place. The band
@@ -162,6 +193,15 @@ export function Methods() {
           .
         </li>
         <li>US forecasts: United States Environmental Protection Agency.</li>
+        <li>
+          "This time of year" in Australia: calculated by uvatlas from ARPANSA's
+          historical UV measurements on data.gov.au, licensed under Creative
+          Commons Attribution 2.5 Australia.
+        </li>
+        <li>
+          "This time of year" in the United States: the NOAA/EPA UV Index
+          bulletins archived by NOAA's Climate Prediction Center.
+        </li>
         <li>
           Forecast curves and sun protection times contain modified Copernicus
           Atmosphere Monitoring Service information. Neither the European

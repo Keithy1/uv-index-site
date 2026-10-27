@@ -21,7 +21,9 @@ import type { ChartGeometry, CurvePoint } from "../lib/chart";
 import { describeCurve, minutesToClock, protectionWindow } from "../lib/chart";
 import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
+import type { CityNormals } from "../lib/normals";
 import { Layout, ORIGIN } from "./Layout";
+import { NORMALS_CSS, ThisTimeOfYear } from "./ThisTimeOfYear";
 
 export interface CityView {
   readonly location: Location;
@@ -51,6 +53,10 @@ export interface CityView {
    * its own forecast of 12.1 Extreme later the same day.
    */
   readonly advice: Advice | null;
+  /** Monthly normals for "this time of year", or null where there are none. */
+  readonly normals: CityNormals | null;
+  /** The current month, 1-12, in the city's own zone. */
+  readonly month: number;
 }
 
 const PAGE_CSS = `
@@ -129,13 +135,17 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
                 font-size="11" text-anchor="middle">{h.label}</text>
             </g>
           ))}
-          {g.thresholdY !== null && (
-            <>
-              <line x1={28} y1={g.thresholdY} x2={g.width - 12} y2={g.thresholdY}
-                stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4" />
-              <text x={4} y={g.thresholdY + 4} fill="var(--muted)" font-size="11">3</text>
-            </>
-          )}
+          {g.levels.map((l) => (
+            <g key={l.uvi}>
+              {/* 3 keeps its dashed rule: it is where protection starts. The
+                  other levels get a faint solid line, there to read against. */}
+              <line x1={28} y1={l.y} x2={g.width - 12} y2={l.y}
+                stroke={l.uvi === 3 ? "var(--muted)" : "var(--line)"} stroke-width="1"
+                stroke-dasharray={l.uvi === 3 ? "4 4" : undefined} />
+              <text x={22} y={l.y + 4} fill="var(--muted)" font-size="11"
+                text-anchor="end">{l.uvi}</text>
+            </g>
+          ))}
           <path d={g.areaPath} fill="var(--link)" opacity="0.14" />
           <path d={g.linePath} fill="none" stroke="var(--link)" stroke-width="2.5"
             stroke-linejoin="round" stroke-linecap="round" />
@@ -211,7 +221,7 @@ export function CityPage(view: CityView) {
       country={loc.country}
       structuredData={structuredData}
     >
-      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + (view.normals ? NORMALS_CSS : "") }} />
 
       <h1>UV Index {label} today</h1>
 
@@ -227,9 +237,14 @@ export function CityPage(view: CityView) {
               </>
             ) : (
               <>
-                {/* Never "measured": there is no US instrument to measure it. */}
-                Forecast for {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
-                {localDate(reading.validAt, tz, locale)}
+                {/* Never "measured": there is no US instrument to measure it.
+                    And say whose clock it is. "Forecast for 6:00 PM PDT on
+                    Monday, October 26", read in Sydney on Tuesday the 27th,
+                    looked like a stale date or the time the forecast was made;
+                    it is the hourly value for the hour nearest now, in this
+                    city's own time. */}
+                Hourly forecast for {localTimeWithZone(reading.validAt, tz, locale)}, the
+                current hour in {loc.name} ({localDate(reading.validAt, tz, locale)})
               </>
             )}
           </p>
@@ -311,6 +326,10 @@ export function CityPage(view: CityView) {
             around {minutesToClock(view.tomorrow.minutes)}.
           </p>
         </>
+      )}
+
+      {view.normals && (
+        <ThisTimeOfYear normals={view.normals} month={view.month} city={loc.name} />
       )}
 
       {view.advice && (

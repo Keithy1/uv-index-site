@@ -102,17 +102,11 @@ CREATE TABLE IF NOT EXISTS daily (
   PRIMARY KEY (location_id, local_date, source)
 ) WITHOUT ROWID;
 
--- Typical peak for this month in this city ("This time of year"), computed once a
--- year from ARPANSA's historical datasets on data.gov.au (CC BY 2.5 AU).
-CREATE TABLE IF NOT EXISTS monthly_normals (
-  location_id   TEXT NOT NULL,
-  month         INTEGER NOT NULL,          -- 1-12
-  mean_peak     REAL NOT NULL,
-  years_from    INTEGER NOT NULL,
-  years_to      INTEGER NOT NULL,
-  computed_at   TEXT NOT NULL,
-  PRIMARY KEY (location_id, month)
-) WITHOUT ROWID;
+-- There is no monthly_normals table, on purpose. "This time of year" changes
+-- once a year and fits in a few kilobytes, so it is computed by
+-- .github/workflows/normals.yml into data/normals.json and bundled with the
+-- Worker, like the station list: no reads, no writes. The table that was here
+-- for it was never written to.
 
 -- Drives /api/health and the "Live reading delayed" banner.
 CREATE TABLE IF NOT EXISTS source_health (

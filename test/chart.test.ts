@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCurve, describeCurve, minutesToClock, protectionWindow } from "../src/lib/chart";
+import { axisLevels, buildCurve, describeCurve, minutesToClock, protectionWindow } from "../src/lib/chart";
 import type { CurvePoint } from "../src/lib/chart";
 
 /** An hourly curve peaking at midday, like a real clear day. */
@@ -171,5 +171,22 @@ describe("a truncated day must not be reported as a peak", () => {
   it("also refuses a protection window for the truncated day", () => {
     const partial = bell(11).filter((p) => p.minutes <= 9 * 60);
     expect(protectionWindow(partial)).toBeNull();
+  });
+});
+
+describe("axisLevels", () => {
+  it("labels the band boundaries up to the top of the scale", () => {
+    // Brisbane on 27 October: a peak of 10.1 makes the scale 12.
+    expect(axisLevels(12)).toEqual([0, 3, 6, 8, 11]);
+    expect(axisLevels(10)).toEqual([0, 3, 6, 8, 10]);
+  });
+
+  it("puts a number on the top of the scale when it is clear of the last boundary", () => {
+    expect(axisLevels(14)).toEqual([0, 3, 6, 8, 11, 14]);
+    expect(axisLevels(4)).toEqual([0, 3]); // 4 sits too close to 3 to label
+  });
+
+  it("always includes 3, where protection starts", () => {
+    for (const max of [4, 6, 8, 10, 12, 14, 16]) expect(axisLevels(max)).toContain(3);
   });
 });

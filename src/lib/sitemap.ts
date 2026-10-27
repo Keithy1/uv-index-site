@@ -15,16 +15,25 @@ import { COUNTRIES, locationsIn } from "./locations";
 import type { CountryCode } from "./locations";
 import { ORIGIN } from "./urls";
 
-/** When the text pages were last meaningfully edited. Update when they change. */
-export const STATIC_PAGES_UPDATED = "2026-10-25";
+/**
+ * When each text page was last meaningfully edited. Update the one you change.
+ *
+ * Per page, not one date for all: a single shared date meant editing /methods/
+ * would have told Google the guide and the legal pages had changed too, and a
+ * lastmod that moves without a change is one a crawler learns to ignore.
+ */
+export const STATIC_PAGES: Record<string, string> = {
+  "/uv-index-explained/": "2026-10-25",
+  "/methods/": "2026-10-27",
+  "/about/": "2026-10-25",
+  "/privacy/": "2026-10-25",
+  "/terms/": "2026-10-25",
+};
 
-export const STATIC_PATHS = [
-  "/uv-index-explained/",
-  "/methods/",
-  "/about/",
-  "/privacy/",
-  "/terms/",
-] as const;
+export const STATIC_PATHS = Object.keys(STATIC_PAGES);
+
+/** The pages sitemap changes when any page in it does. */
+export const STATIC_PAGES_UPDATED = Object.values(STATIC_PAGES).sort().at(-1)!;
 
 function xmlEscape(value: string): string {
   return value
@@ -110,7 +119,7 @@ export function pagesSitemap(now: Date = new Date()): string {
     { path: "/", lastmod: todayUtc(now), changefreq: "hourly" },
     ...STATIC_PATHS.map((path) => ({
       path,
-      lastmod: STATIC_PAGES_UPDATED,
+      lastmod: STATIC_PAGES[path]!,
       changefreq: "monthly",
     })),
   ]);
