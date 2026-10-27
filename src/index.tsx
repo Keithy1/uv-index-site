@@ -574,6 +574,7 @@ app.get("/:country/:slug/", async (c) => {
     today: curve,
     tomorrowPeak: tomorrowPeak?.uvi ?? null,
     nowMinutes,
+    nowIsForecast: !page.measured,
   });
 
   c.header("Cache-Control", `public, max-age=${settings.cacheSeconds}, stale-while-revalidate=600`);

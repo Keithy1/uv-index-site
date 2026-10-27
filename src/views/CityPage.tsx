@@ -382,7 +382,17 @@ export function CityPage(view: CityView) {
             >
               {bandFor(view.advice.uvi).name}
             </span>
-            {view.advice.scope === "today" ? " later today." : "."}
+            {view.advice.scope === "today"
+              ? " later today."
+              : view.advice.peak
+                ? (
+                  <>
+                    {" now, up to "}
+                    <strong>{formatUvi(view.advice.peak.uvi)}</strong>
+                    {` around ${minutesToClock(view.advice.peak.minutes)}.`}
+                  </>
+                )
+                : "."}
           </p>
           <ul class="todo">
             {whatToDo(view.advice.uvi).map((line) => (

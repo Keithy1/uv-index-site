@@ -187,6 +187,21 @@ describe("adviceLevel", () => {
     expect(a).toEqual({ uvi: 9.3, scope: "now" });
   });
 
+  it("names a higher peak still ahead in the same band", () => {
+    // Miami, 27 October, noon: forecast 5.6 now, 7.0 at 1 pm, both High. The
+    // page said "At 5.6" under a chart still climbing.
+    const noon = [
+      { minutes: 12 * 60, uvi: 5.6 },
+      { minutes: 13 * 60, uvi: 7.0 },
+      { minutes: 14 * 60, uvi: 6.4 },
+    ];
+    expect(adviceLevel({ now: 5.6, today: noon, tomorrowPeak: 6.9, nowMinutes: 12 * 60, nowIsForecast: true }))
+      .toEqual({ uvi: 5.6, scope: "now", peak: { uvi: 7.0, minutes: 13 * 60 } });
+    // The same rise beside a measurement is within the forecast's error.
+    expect(adviceLevel({ now: 6.4, today: noon, tomorrowPeak: 6.9, nowMinutes: 12 * 60 }))
+      .toEqual({ uvi: 6.4, scope: "now" });
+  });
+
   it("still says 'later today' when a later hour reaches a higher band", () => {
     // Morning: High now, Extreme by midday.
     const morning = [{ minutes: 11 * 60, uvi: 9.5 }, { minutes: 12 * 60, uvi: 12 }];

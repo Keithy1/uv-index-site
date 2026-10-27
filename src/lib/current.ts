@@ -15,7 +15,7 @@
  * without a database or a clock.
  */
 import { localDateKey, localMinutes } from "./time";
-import { bandFor, PROTECTION_THRESHOLD, roundForBand } from "./uv";
+import { bandFor, formatUvi, PROTECTION_THRESHOLD, roundForBand } from "./uv";
 
 export interface ForecastPoint {
   readonly validAt: string;
@@ -105,7 +105,22 @@ export interface Advice {
   readonly uvi: number;
   /** Which period it describes, so the heading can say so. */
   readonly scope: AdviceScope;
+  /**
+   * A higher point still ahead today in the same band, when "now" would
+   * otherwise hide it. Miami at noon: 5.6 now, 7.0 at 1 pm, both High. The
+   * advice is the same, but "At 5.6" under a chart still climbing read as if
+   * the page had missed the peak.
+   */
+  readonly peak?: { readonly uvi: number; readonly minutes: number };
 }
+
+/**
+ * How far a forecast point must sit above a measurement before it counts as a
+ * peak still to come: the forecast's typical error. Below this the two are the
+ * same reading seen twice (Alice Springs, 1:20 pm: 9.3 measured beside a 9.8
+ * forecast point, the curve already falling).
+ */
+const FORECAST_ERROR = 1.2;
 
 /**
  * The level sun-protection advice should be based on.
@@ -130,6 +145,8 @@ export function adviceLevel(opts: {
   readonly tomorrowPeak: number | null;
   /** Minutes since local midnight, now. */
   readonly nowMinutes: number;
+  /** True when `now` is itself a forecast (US pages), so any rise is the curve's own. */
+  readonly nowIsForecast?: boolean;
 }): Advice | null {
   const ahead = opts.today.filter((p) => p.minutes >= opts.nowMinutes);
   const aheadPeak = ahead.length ? Math.max(...ahead.map((p) => p.uvi)) : null;
@@ -156,7 +173,14 @@ export function adviceLevel(opts: {
     // the higher level still wins, so the advice is never weaker than what is
     // coming.
     if (current !== null && bandFor(todayBest).name === bandFor(current).name) {
-      return { uvi: current, scope: "now" };
+      const top = ahead.reduce<(typeof ahead)[number] | null>(
+        (best, p) => (best === null || p.uvi > best.uvi ? p : best),
+        null,
+      );
+      const margin = opts.nowIsForecast ? 0 : FORECAST_ERROR;
+      return top !== null && formatUvi(top.uvi) !== formatUvi(current) && top.uvi - current > margin
+        ? { uvi: current, scope: "now", peak: { uvi: top.uvi, minutes: top.minutes } }
+        : { uvi: current, scope: "now" };
     }
     return { uvi: todayBest, scope: current !== null && todayBest <= current ? "now" : "today" };
   }
