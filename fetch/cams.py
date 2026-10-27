@@ -40,7 +40,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .common import Record, check_uvi, utc_now
+from .common import Record, check_uvi, load_env, utc_now
 
 ADS_URL = "https://ads.atmosphere.copernicus.eu/api"
 DATASET = "cams-global-atmospheric-composition-forecasts"
@@ -144,6 +144,7 @@ def client():
             "cdsapi is not installed; see requirements.txt"
         ) from exc
 
+    load_env()  # a local .env, if there is one; Actions' secrets still win
     key = os.environ.get("ADS_API_KEY", "")
     if not key:
         raise RuntimeError("ADS_API_KEY is not set")

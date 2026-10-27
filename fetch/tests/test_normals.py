@@ -197,3 +197,24 @@ class Layouts(unittest.TestCase):
         self.addCleanup(os.remove, path)
         with self.assertRaises(ValueError):
             normals.daily_peaks_arpansa(path)
+
+
+class LoadEnv(unittest.TestCase):
+    """fetch.common.load_env: .env for local runs, never over a real variable."""
+
+    def test_reads_values_and_never_overrides(self):
+        from fetch.common import load_env
+        fd, path = tempfile.mkstemp(suffix=".env")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("# comment\nUVATLAS_TEST_A=from-file\nUVATLAS_TEST_B='quoted'\nUVATLAS_TEST_EMPTY=\n")
+        self.addCleanup(os.remove, path)
+        os.environ["UVATLAS_TEST_A"] = "from-actions"
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("UVATLAS_TEST_A", "UVATLAS_TEST_B", "UVATLAS_TEST_EMPTY")])
+        load_env(path)
+        self.assertEqual(os.environ["UVATLAS_TEST_A"], "from-actions")  # a real variable wins
+        self.assertEqual(os.environ["UVATLAS_TEST_B"], "quoted")
+        self.assertNotIn("UVATLAS_TEST_EMPTY", os.environ)                # blanks are not set
+
+    def test_a_missing_file_is_no_error(self):
+        from fetch.common import load_env
+        load_env("/no/such/.env")

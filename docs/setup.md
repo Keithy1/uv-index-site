@@ -4,11 +4,21 @@ Everything here is free. Each item is blocking for the step named beside it.
 
 ## 0. Where keys live
 
-`SECRETS.local.md` in the repository root is the scratchpad for keys and ids.
-It is **never committed**: `.gitignore` excludes `*.local.md`, and
-`.githooks/pre-commit` refuses any commit that stages a secrets file or that
-contains something shaped like a Copernicus or Cloudflare key. This repository
-is public, so that matters.
+Local values live in the conventional, git-ignored files:
+
+| File | For |
+|---|---|
+| `.env` | the Python fetchers (`ADS_API_KEY`, and `CLOUDFLARE_*` only to write to D1 from this machine). `fetch/common.load_env()` reads it; a real environment variable always wins, so Actions' secrets are never overridden |
+| `.dev.vars` | the Worker under `npm run dev` — Wrangler's own equivalent (`GITHUB_DISPATCH_TOKEN`, if testing the dispatch locally) |
+| `.env.example` | **committed**: the names, with no values. Copy it to `.env` |
+
+Neither secrets file is ever committed: `.gitignore` excludes every `.env`
+variant except the example, and `.githooks/pre-commit` refuses secrets files,
+credential-shaped strings and the exact values in `.env` and `.dev.vars`. CI
+scans every push for the same shapes. This repository is public, so that
+matters. (Until 27 October the keys sat in a notes file, `SECRETS.local.md`;
+it was replaced by these because nothing reads a Markdown file for
+configuration, and `.env` is what anyone opening the project expects.)
 
 `core.hooksPath` is local configuration and does not travel with a clone. In any
 fresh clone, enable the hook once:

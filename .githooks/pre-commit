@@ -20,7 +20,9 @@ staged=$(git diff --cached --name-only --diff-filter=ACMR)
 # 1. Files that exist to hold secrets, by name.
 for file in $staged; do
   case "$file" in
-    *.local.md|.cdsapirc|*/.cdsapirc|.env|*/.env|.env.*|.git-creds|.git-credentials)
+    .env.example|*/.env.example)
+      ;;  # names only, no values: the one .env file that is meant to be shared
+    *.local.md|.cdsapirc|*/.cdsapirc|.env|*/.env|.env.*|*/.env.*|.dev.vars|*/.dev.vars|.git-creds|.git-credentials)
       fail "$file is a secrets file"
       ;;
   esac
@@ -56,19 +58,18 @@ if [ -f "$patterns" ]; then
 fi
 
 # 5. The real values. Shapes miss a key in an unexpected format; the values
-#    themselves cannot be missed. Read from SECRETS.local.md on this machine
-#    only -- the file is never committed, so the values never leave it -- and
-#    only strings with letters and digits in them, so ordinary words in the
-#    notes (dataset names, say) are never treated as secrets.
-local_secrets="$(git rev-parse --show-toplevel)/SECRETS.local.md"
-if [ -f "$local_secrets" ]; then
-  values=$(grep -oE '[A-Za-z0-9_-]{24,}' "$local_secrets" | grep '[0-9]' | grep '[A-Za-z]' | sort -u)
-  if [ -n "$values" ]; then
-    for file in $staged; do
-      git show ":$file" 2>/dev/null | grep -qF "$values" \
-        && fail "$file contains a value from SECRETS.local.md"
-    done
-  fi
+#    themselves cannot be missed. Taken from the KEY=value lines of .env and
+#    .dev.vars on this machine -- both git-ignored, so the values never leave
+#    it -- ignoring blanks and anything under 12 characters.
+top="$(git rev-parse --show-toplevel)"
+values=$(cat "$top/.env" "$top/.dev.vars" 2>/dev/null \
+  | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | cut -d= -f2- \
+  | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//' | awk 'length($0) >= 12' | sort -u)
+if [ -n "$values" ]; then
+  for file in $staged; do
+    git show ":$file" 2>/dev/null | grep -qF "$values" \
+      && fail "$file contains a value from .env or .dev.vars"
+  done
 fi
 
 exit 0

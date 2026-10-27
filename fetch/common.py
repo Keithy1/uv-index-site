@@ -10,6 +10,7 @@ Design-doc rules encoded here:
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 
@@ -49,6 +50,28 @@ class Record:
             if d[key] is not None:
                 d[key] = d[key].astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         return d
+
+
+def load_env(path: str | None = None) -> None:
+    """Read KEY=value lines from the repository's .env into the environment.
+
+    Standard library only, so the fetchers gain no dependency. Never overrides
+    a variable that is already set: in GitHub Actions the secrets arrive as
+    real environment variables and must win over any file. Missing file, no-op.
+    """
+    target = path or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    try:
+        with open(target, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                value = value.strip().strip("'\"")
+                if name.strip() and value:
+                    os.environ.setdefault(name.strip(), value)
+    except FileNotFoundError:
+        pass
 
 
 def check_uvi(value: float) -> bool:
