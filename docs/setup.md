@@ -188,6 +188,18 @@ can be indexed".
 Next: Bing Webmaster Tools can import this property in one step, and ARPANSA
 is owed the site address (see section 4).
 
+## 3f. Bing Webmaster Tools — DONE (27 October 2026)
+
+`https://uvatlas.com/` verified by DNS. The record is in Cloudflare:
+
+    CNAME  2da36ce8a5c8a701ebfa59ac278eaff9  verify.bing.com   (DNS only)
+
+**DNS only, and keep it.** Proxied, Cloudflare answers with its own addresses
+and Bing never sees the alias; deleted, the site drops out of Bing's tools.
+Not imported from Search Console, because that route grants Microsoft access
+to the Google account; one record does the same job. Sitemap
+`https://uvatlas.com/sitemap.xml` submitted the same day.
+
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
 ARPANSA's terms allow free use of the real-time feed with credit, but
