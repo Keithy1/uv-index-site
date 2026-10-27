@@ -70,6 +70,12 @@ To exercise the cron locally, start `npm run dev` and
 - **A title may not promise what the page has not got.** US city pages have no
   instrument, so they say "Hourly Forecast", not "Live Reading". Fifty of them
   shipped claiming one. See `docs/seo.md`.
+- **No credential is ever written into a tracked file.** The repository is
+  public. Live values are GitHub Actions secrets (`ADS_API_KEY`,
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and a Worker secret
+  (`GITHUB_DISPATCH_TOKEN`, via `wrangler secret put`); the local copy is the
+  git-ignored `SECRETS.local.md`. `.githooks/pre-commit` and the CI `secrets`
+  job enforce it — never bypass them with `--no-verify`.
 - **Ads stay off** in `COUNTRIES` until the licence position for that country
   allows them. Australia needs ARPANSA's written authorisation. A test asserts this.
 

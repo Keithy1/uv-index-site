@@ -9,6 +9,28 @@ permissions:
   contents: read
 
 jobs:
+  # The same credential shapes the pre-commit hook refuses, checked here on
+  # every push. The hook only runs on a machine that has opted in
+  # (core.hooksPath); this repository is public, so the check that cannot be
+  # skipped belongs where everyone's commits arrive.
+  secrets:
+    name: No credentials in the repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan every tracked file
+        run: |
+          found=$(git ls-files -z | grep -zv '^scripts/secret-patterns.txt$' \
+            | xargs -0 grep -InE -f scripts/secret-patterns.txt || true)
+          if [ -n "$found" ]; then
+            # File and line only: printing the match would publish it again.
+            echo "$found" | cut -d: -f1,2
+            echo "::error::Something shaped like a credential is committed. Revoke it first, then remove it."
+            exit 1
+          fi
+          echo "clean"
+
   worker:
     name: Worker (TypeScript)
     runs-on: ubuntu-latest

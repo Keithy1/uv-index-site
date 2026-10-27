@@ -42,4 +42,33 @@ for file in $staged; do
     && fail "$file looks like it contains a Cloudflare API token"
 done
 
+# 4. Shapes no file here should ever contain, whatever it is called. Added on
+#    27 October 2026: the Worker's GITHUB_DISPATCH_TOKEN is a GitHub token, and
+#    checks 2 and 3 knew nothing about that kind. The shared list lives in
+#    scripts/secret-patterns.txt so CI scans for exactly the same things.
+patterns="$(git rev-parse --show-toplevel)/scripts/secret-patterns.txt"
+if [ -f "$patterns" ]; then
+  for file in $staged; do
+    [ "$file" = "scripts/secret-patterns.txt" ] && continue
+    git show ":$file" 2>/dev/null | grep -qE -f "$patterns" \
+      && fail "$file contains something shaped like a credential (see scripts/secret-patterns.txt)"
+  done
+fi
+
+# 5. The real values. Shapes miss a key in an unexpected format; the values
+#    themselves cannot be missed. Read from SECRETS.local.md on this machine
+#    only -- the file is never committed, so the values never leave it -- and
+#    only strings with letters and digits in them, so ordinary words in the
+#    notes (dataset names, say) are never treated as secrets.
+local_secrets="$(git rev-parse --show-toplevel)/SECRETS.local.md"
+if [ -f "$local_secrets" ]; then
+  values=$(grep -oE '[A-Za-z0-9_-]{24,}' "$local_secrets" | grep '[0-9]' | grep '[A-Za-z]' | sort -u)
+  if [ -n "$values" ]; then
+    for file in $staged; do
+      git show ":$file" 2>/dev/null | grep -qF "$values" \
+        && fail "$file contains a value from SECRETS.local.md"
+    done
+  fi
+fi
+
 exit 0

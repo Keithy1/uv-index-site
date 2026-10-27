@@ -17,7 +17,12 @@ data/latest.json
 data/health.json
 
 # Secrets. SECRETS.local.md holds API keys in plain text and must never be
-# tracked: this repository is public. A pre-commit hook enforces it as well.
+# tracked: this repository is public. Two checks back this up: .githooks/
+# pre-commit refuses secrets files, credential-shaped strings and the real
+# values in SECRETS.local.md (enable once per clone with
+# `git config core.hooksPath .githooks`), and CI scans every push for the same
+# shapes, from scripts/secret-patterns.txt. The live values are GitHub Actions
+# secrets and a Cloudflare Worker secret, never files here.
 *.local.md
 .cdsapirc
 .env
