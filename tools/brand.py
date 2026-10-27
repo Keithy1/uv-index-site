@@ -9,7 +9,7 @@ CI nor the Worker needs an image library:
     og-image.jpg          1200x630  share card; fetched by social crawlers only
     logo.jpg              512x512   Organization logo in structured data
     apple-touch-icon.png  180x180   iOS home screen
-    mark.webp             56x56     header mark, shown at 28 px (2x for sharp screens)
+    mark.webp             72x72     header mark, shown at 36 px (2x for sharp screens)
 
 The favicon is deliberately not cut from this artwork: at 16 px the globe is a
 blue blob, and tools/favicon.py's plain sun reads better.
@@ -81,7 +81,7 @@ def touch_icon() -> None:
 
 def header_mark() -> None:
     # Transparent, so the one file works on the light and the dark header.
-    globe.resize((56, 56), Image.LANCZOS).save(OUT + "mark.webp", quality=90, method=6)
+    globe.resize((72, 72), Image.LANCZOS).save(OUT + "mark.webp", quality=90, method=6)
 
 
 if __name__ == "__main__":
