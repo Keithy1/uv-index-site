@@ -142,3 +142,58 @@ class UsSources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Layouts(unittest.TestCase):
+    """The yearly files come in three layouts; all three must read the same."""
+
+    def test_parse_stamp_reads_every_layout(self):
+        from fetch.arpansa_history import parse_stamp
+        from datetime import datetime
+        want = datetime(2024, 1, 2, 9, 5)
+        self.assertEqual(parse_stamp({"Date-Time": "2024-01-02 09:05:00"}), want)
+        self.assertEqual(parse_stamp({"timestamp": "2024-01-02 09:05:00"}), want)  # 2016
+        self.assertEqual(parse_stamp({"Date-Time": "2/01/2024 9:05"}), want)       # Newcastle 2024
+
+    def test_a_spreadsheet_date_is_day_first(self):
+        # "2/01/2024" is the second of January in an Australian file, not 1 February.
+        from fetch.arpansa_history import parse_stamp
+        self.assertEqual(parse_stamp({"Date-Time": "2/01/2024 0:00"}).month, 1)
+        self.assertEqual(parse_stamp({"Date-Time": "13/01/2024 0:00"}).day, 13)
+
+    def test_unreadable_time_is_none_not_a_guess(self):
+        from fetch.arpansa_history import parse_stamp
+        self.assertIsNone(parse_stamp({"Date-Time": "Jan 2 2024"}))
+        self.assertIsNone(parse_stamp({}))
+
+    def test_peaks_come_out_the_same_from_every_layout(self):
+        base = DailyPeaksArpansa.full_day(None, "2020-01-01")
+        as_2016 = [r for r in base]
+        as_sheet = []
+        for r in base:
+            stamp, rest = r.split(",", 1)
+            d, t = stamp.split(" ")
+            y, m, dd = d.split("-")
+            hh, mm, _ = t.split(":")
+            as_sheet.append(f"{int(dd)}/{m}/{y} {int(hh)}:{mm},{rest}")
+        peaks = {}
+        for header, rows in (("Date-Time", base), ("timestamp", as_2016), ("Date-Time", as_sheet)):
+            fd, path = tempfile.mkstemp(suffix=".csv")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(f"{header},Lat,Lon,UV_Index\n" + "\n".join(rows) + "\n")
+            peaks[len(peaks)] = normals.daily_peaks_arpansa(path)
+            os.remove(path)
+        self.assertEqual(peaks[0], peaks[1])
+        self.assertEqual(peaks[0], peaks[2])
+        self.assertEqual(len(peaks[0]), 1)
+
+    def test_a_year_it_cannot_read_stops_the_run(self):
+        # 2016 read as "0 valid days" for every station and the run carried on.
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("When,Lat,Lon,UV_Index\n")
+            for i in range(normals.UNREADABLE_ROWS + 10):
+                f.write(f"someday {i},-31.9,115.9,5.0\n")
+        self.addCleanup(os.remove, path)
+        with self.assertRaises(ValueError):
+            normals.daily_peaks_arpansa(path)

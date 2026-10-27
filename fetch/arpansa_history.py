@@ -61,6 +61,36 @@ PACKAGES: dict[str, str] = {
 }
 
 
+# The yearly files are not all laid out the same. Found on 27 October 2026,
+# when a full run reported 0 valid days for every station in 2016 and for
+# Newcastle in 2024 -- an instrument cannot fail at thirteen sites for a year at
+# once, so the parser had silently understood nothing:
+#
+#     2016:            timestamp,Lat,Lon,UV_Index
+#                      2016-01-01 00:01:00,...
+#     most years:      Date-Time,Lat,Lon,UV_Index
+#                      2025-01-01 00:00:00,...
+#     Newcastle 2024:  Date-Time,Lat,Lon,UV_Index     (via a spreadsheet:
+#                      1/01/2024 0:00,...              day first, no seconds)
+#
+# Day first, because these are Australian files and "1/01" is how an Australian
+# spreadsheet writes the first of January. Read month-first, 13/01 would fail
+# and 2/01 would land in February -- a mistake no test of a single day catches.
+TIME_COLUMNS = ("Date-Time", "timestamp")
+TIME_FORMATS = ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S")
+
+
+def parse_stamp(row: dict) -> datetime | None:
+    """The row's clock time, in whichever layout this file uses; None if none fits."""
+    raw = next((row[c] for c in TIME_COLUMNS if row.get(c)), "").strip()
+    for fmt in TIME_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def standard_offset(tz_name: str, year: int = 2025) -> timedelta:
     """The zone's offset with daylight saving OFF.
 
@@ -125,14 +155,12 @@ def hourly_means(
 
     with open(path, encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            stamp = row.get("Date-Time", "")
             try:
                 uv = float(row["UV_Index"])
             except (KeyError, TypeError, ValueError):
                 continue
-            try:
-                local = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
+            local = parse_stamp(row)
+            if local is None:
                 continue
             # The file's clock minus the station's standard offset is UTC.
             moment = local.replace(tzinfo=timezone.utc) - offset
@@ -183,8 +211,10 @@ def hourly_clearness(
         for row in csv.DictReader(f):
             try:
                 uv = float(row["UV_Index"])
-                local = datetime.strptime(row["Date-Time"], "%Y-%m-%d %H:%M:%S")
             except (KeyError, TypeError, ValueError):
+                continue
+            local = parse_stamp(row)
+            if local is None:
                 continue
             moment = local.replace(tzinfo=timezone.utc) - offset
             hour = moment.replace(minute=0, second=0, microsecond=0)

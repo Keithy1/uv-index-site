@@ -49,6 +49,16 @@ jobs:
           --au-years "${{ inputs.au_years || '2016-2025' }}"
           --us-years "${{ inputs.us_years || '2015-2024' }}"
 
+      # Kept whatever happens next. The first full run computed for fifty
+      # minutes and then lost everything to a rejected push; with the file
+      # saved here, a failure after this point costs a download, not a re-run.
+      - name: Keep the result
+        uses: actions/upload-artifact@v4
+        with:
+          name: normals
+          path: data/normals.json
+          retention-days: 30
+
       - name: Commit if changed
         run: |
           if git diff --quiet -- data/normals.json; then
@@ -59,4 +69,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/normals.json
           git commit -m "Monthly UV normals, recomputed by the normals workflow"
+          # main will usually have moved during a run this long -- the first
+          # one's push was rejected for exactly that. This job only ever
+          # touches data/normals.json, so a rebase onto the new main is clean.
+          git pull --rebase origin main
           git push

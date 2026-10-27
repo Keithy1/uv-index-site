@@ -62,6 +62,11 @@ MIN_DAYS = 60
 # truncated-maximum mistake that once had Brisbane "peaking at 6.1 at 9 am".
 MIN_MIDDAY_MINUTES = 200
 
+# A file this many rows long must yield at least this many valid days, or its
+# layout was not understood. 50,000 rows is about five weeks of minutes.
+UNREADABLE_ROWS = 50_000
+UNREADABLE_DAYS = 10
+
 # How far a US city may be from a bulletin city and still take its values.
 PROXY_MAX_KM = 60
 
@@ -126,8 +131,10 @@ def daily_peaks_arpansa(path: str) -> dict[date, float]:
     """
     buckets: dict[tuple[date, int], list[float]] = {}
     midday: dict[date, int] = {}
+    rows = 0
     with open(path, encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
+            rows += 1
             raw = (row.get("UV_Index") or "").strip()
             # float("") would raise, but say it plainly: an empty field is
             # missing data, never a zero.
@@ -135,8 +142,10 @@ def daily_peaks_arpansa(path: str) -> dict[date, float]:
                 continue
             try:
                 uv = float(raw)
-                stamp = datetime.strptime(row.get("Date-Time", ""), "%Y-%m-%d %H:%M:%S")
             except ValueError:
+                continue
+            stamp = arpansa_history.parse_stamp(row)
+            if stamp is None:
                 continue
             day = stamp.date()
             buckets.setdefault((day, stamp.hour * 12 + stamp.minute // 5), []).append(uv)
@@ -150,6 +159,17 @@ def daily_peaks_arpansa(path: str) -> dict[date, float]:
         mean = sum(vals) / len(vals)
         if mean > peaks.get(day, float("-inf")):
             peaks[day] = mean
+
+    # A file with a month's worth of rows and almost no valid days has not been
+    # understood. Say so and stop, rather than let a normal quietly rest on nine
+    # years where it claims ten -- which is what happened to 2016 until the
+    # layouts were found (see arpansa_history.TIME_FORMATS). A station that
+    # genuinely started mid-year has few rows, not many unreadable ones.
+    if rows > UNREADABLE_ROWS and len(peaks) < UNREADABLE_DAYS:
+        raise ValueError(
+            f"{path}: {rows} rows but {len(peaks)} valid days -- "
+            "an unrecognised layout? See arpansa_history.TIME_FORMATS."
+        )
     return peaks
 
 
