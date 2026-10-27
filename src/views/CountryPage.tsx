@@ -115,6 +115,8 @@ details.citypick li a{display:block;padding:4px 2px;text-decoration:none}
 details.citypick li a:hover{text-decoration:underline}
 .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
 .pin circle{cursor:default;stroke:var(--bg);stroke-width:1.5}
+.mapbox a .pin circle,.mapbox a .pin text{cursor:pointer}
+.mapbox a:hover .pin circle{stroke:var(--fg)}
 .pin text{font-size:7.5px;font-weight:700;text-anchor:middle}
 .tip rect{fill:var(--fg);stroke:var(--bg);stroke-width:.8}
 .tip text{font-size:8.5px;font-weight:600;fill:var(--bg);text-anchor:middle}
@@ -258,14 +260,27 @@ function CityPicker({ rows }: { rows: readonly CityRow[] }) {
  */
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 
+/**
+ * The markers, each a link to its city page where one exists.
+ *
+ * tabindex="-1": the same fifty links are in the table and the city picker,
+ * where a keyboard reaches them in a sensible order; fifty more tab stops
+ * scattered across the map would only stand in the way. Nor do the markers
+ * carry labels of their own -- the <svg> is role="img", which makes everything
+ * inside it presentational, so per-marker labels were never read out. The
+ * map's own label points to the table instead. Dropping them paid for the
+ * links: the US page stays under its 100 KB budget.
+ */
 function MarkerLayer({
   rows,
   map,
   value,
+  linked,
 }: {
   rows: readonly CityRow[];
   map: CountryMap;
   value: (r: CityRow) => number | null;
+  linked: boolean;
 }) {
   return (
     <>
@@ -275,16 +290,18 @@ function MarkerLayer({
         const p = map.project(r.location.lat, r.location.lon);
         const x = r1(p.x), y = r1(p.y);
         const band = bandFor(uvi);
-        return (
-          <g
-            key={r.location.id}
-            class={`pin p-${r.location.id}`}
-            role="img"
-            aria-label={`${r.location.name}: UV ${formatUvi(uvi)} ${band.name}`}
-          >
+        const pin = (
+          <g key={r.location.id} class={`pin p-${r.location.id}`}>
             <circle cx={x} cy={y} r="6" fill={band.bg} />
             <text x={x} y={r1(y + 3.2)} fill={band.fg}>{Math.round(uvi)}</text>
           </g>
+        );
+        return linked ? (
+          <a key={r.location.id} href={`/${r.location.country}/${r.location.slug}/`} tabindex={-1}>
+            {pin}
+          </a>
+        ) : (
+          pin
         );
       })}
     </>
@@ -337,11 +354,14 @@ function CountryOutline({
   map,
   countryName,
   measured,
+  cityPages,
 }: {
   rows: readonly CityRow[];
   map: CountryMap;
   countryName: string;
   measured: boolean;
+  /** Whether each city has a page the markers can link to. */
+  cityPages: boolean;
 }) {
   // A view only appears if there is data behind it.
   const views: { id: ViewId; label: string; caption: string; value: (r: CityRow) => number | null }[] =
@@ -411,7 +431,7 @@ function CountryOutline({
               beside its own marker is covered by the next marker along. */}
           {views.map((v) => (
             <g key={v.id} class={`m-${v.id}`}>
-              <MarkerLayer rows={rows} map={map} value={v.value} />
+              <MarkerLayer rows={rows} map={map} value={v.value} linked={cityPages} />
               <TipLayer rows={rows} map={map} value={v.value} />
             </g>
           ))}
@@ -552,6 +572,7 @@ export function CountryPage(view: CountryView) {
         map={view.map}
         countryName={country.name}
         measured={view.measured}
+        cityPages={view.cityPages}
       />
 
       <h2 id="tomorrow">
