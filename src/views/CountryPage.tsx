@@ -73,7 +73,11 @@ letter-spacing:-.03em}
 font-weight:700;letter-spacing:.02em;background:#d32010;color:#fff;vertical-align:middle}
 .mapbox{border:1px solid var(--line);border-radius:12px;background:var(--card);
 padding:8px;margin:8px 0}
-.mapbox svg{display:block;width:100%;height:auto}
+/* Capped, because width alone sets the height: at the 64rem page width
+   Australia's near-square outline drew 974 x 899 px, taller than a laptop
+   screen, and pushed the city table out of sight. Past the cap the map
+   letterboxes, centred, at its own proportions. */
+.mapbox svg{display:block;width:100%;height:auto;max-height:600px}
 
 /* The map's view switch, with no JavaScript at all.
    Hidden radios drive it: :checked for the chosen view, :has() for the hover

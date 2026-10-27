@@ -41,7 +41,12 @@ const CSS = `
 body{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 -webkit-text-size-adjust:100%}
-.wrap{max-width:44rem;margin:0 auto;padding:0 16px}
+/* 64rem, not the 44rem it was: on a 1920 px screen two-thirds of the width
+   was margin, and the standard 728 px in-page ad would not have fitted in the
+   column -- ads go in the flow, never beside a reading. Running text stays at
+   a reading width below; charts, maps and tables take the room. */
+.wrap{max-width:64rem;margin:0 auto;padding:0 16px}
+main p,.todo,.normals{max-width:44rem}
 a{color:var(--link)}
 a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 header.site{border-bottom:1px solid var(--line)}
