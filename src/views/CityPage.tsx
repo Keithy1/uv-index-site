@@ -142,8 +142,13 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
               <line x1={28} y1={l.y} x2={g.width - 12} y2={l.y}
                 stroke={l.uvi === 3 ? "var(--muted)" : "var(--line)"} stroke-width="1"
                 stroke-dasharray={l.uvi === 3 ? "4 4" : undefined} />
-              <text x={22} y={l.y + 4} fill="var(--muted)" font-size="11"
-                text-anchor="end">{l.uvi}</text>
+              {/* Each number in its band's colour, as a pill rather than as
+                  coloured text: Moderate's yellow is unreadable as text on a
+                  light background, but the badge pairing (band.fg on band.bg)
+                  already meets contrast everywhere else on the site. */}
+              <rect x={3} y={l.y - 7} width={21} height={14} rx={4} fill={bandFor(l.uvi).bg} />
+              <text x={13.5} y={l.y + 3.5} fill={bandFor(l.uvi).fg} font-size="10"
+                font-weight="700" text-anchor="middle">{l.uvi}</text>
             </g>
           ))}
           <path d={g.areaPath} fill="var(--link)" opacity="0.14" />
