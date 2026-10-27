@@ -25,10 +25,10 @@ export function Guide() {
         "ARPANSA and EPA positions."
       }
       path="/uv-index-explained/"
-      updated="25 October 2026"
+      updated="27 October 2026"
     >
       <p>
-        The UV index is a single number describing how strong the sun's
+        What is the UV index? A single number describing how strong the sun's
         ultraviolet radiation is at ground level, at a particular place and
         moment. It starts at 0 and has no fixed upper limit, though readings
         above 16 are rare outside the tropics and high altitude.
@@ -40,7 +40,7 @@ export function Guide() {
         means the same in Perth as it does in Phoenix.
       </p>
 
-      <h2>What each level means</h2>
+      <h2>The UV index scale</h2>
       <p>
         The World Health Organization groups the index into five bands. The
         colours below are the ones used throughout this site.

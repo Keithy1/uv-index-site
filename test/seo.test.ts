@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { cityLabel, locationsIn } from "../src/lib/locations";
 import { canonicalPath } from "../src/lib/urls";
 import { CityPage, type CityView } from "../src/views/CityPage";
+import { countryHeading, countryTitle, inProse } from "../src/views/CountryPage";
+import { Guide } from "../src/views/pages/Guide";
 
 /**
  * The keyword work lived only in the design document, where nothing checked it,
@@ -155,5 +157,35 @@ describe("the forecast timestamp", () => {
     // looked like a stale date, or the time the forecast was issued.
     const h = html(view(US, false)).replace(/<!--.*?-->/gs, "");
     expect(h).toMatch(/Hourly forecast for [^<]+, the current hour in Portland \(/);
+  });
+});
+
+describe("the searches each page is for", () => {
+  // From the research (SITE BUILD RESEARCH, 19 October 2026). Each was audited
+  // missing on 27 October and is held here so a copy edit cannot drop it.
+
+  it("leads the US page with 'UV index today', the biggest single search", () => {
+    const title = countryTitle("United States", false);
+    expect(title.toLowerCase().startsWith("uv index today")).toBe(true);
+    expect(title.toLowerCase()).toContain("tomorrow");
+    expect(title.length).toBeLessThanOrEqual(65);
+    expect(countryHeading("United States", false)).toBe("UV index today across the United States");
+  });
+
+  it("keeps the country's name first where readings are measured", () => {
+    expect(countryTitle("Australia", true)).toMatch(/^UV Index Australia/);
+    expect(countryHeading("Australia", true)).toBe("UV Index Australia");
+  });
+
+  it("puts 'the' before a United country, in prose", () => {
+    expect(inProse("United States")).toBe("the United States");
+    expect(inProse("United Kingdom")).toBe("the United Kingdom");
+    expect(inProse("Australia")).toBe("Australia");
+  });
+
+  it("answers 'what is the UV index' and names 'the UV index scale' in the guide", () => {
+    const h = String(Guide()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").toLowerCase();
+    expect(h).toContain("what is the uv index?");
+    expect(h).toContain("the uv index scale");
   });
 });

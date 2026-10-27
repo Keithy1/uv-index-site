@@ -228,9 +228,9 @@ export function HomePage(view: HomeView) {
 
       <h1>UV index today and tomorrow</h1>
       <p class="intro">
-        Live UV readings and forecasts, city by city. Choose a country to see what the
-        UV is right now, what it reaches tomorrow, and the hours sun protection is
-        needed.
+        A live UV index map, city by city. Choose a country on the map to see what
+        the UV is right now, what it reaches tomorrow, and the hours sun protection
+        is needed.
       </p>
 
       {/* Hidden until the script confirms a served country; never a redirect. */}

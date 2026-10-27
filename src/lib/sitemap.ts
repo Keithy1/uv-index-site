@@ -23,7 +23,7 @@ import { ORIGIN } from "./urls";
  * lastmod that moves without a change is one a crawler learns to ignore.
  */
 export const STATIC_PAGES: Record<string, string> = {
-  "/uv-index-explained/": "2026-10-25",
+  "/uv-index-explained/": "2026-10-27",
   "/methods/": "2026-10-27",
   "/about/": "2026-10-25",
   "/privacy/": "2026-10-25",

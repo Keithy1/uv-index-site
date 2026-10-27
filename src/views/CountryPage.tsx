@@ -307,7 +307,9 @@ function CountryOutline({
     views.push({
       id: "tomorrow",
       label: "Tomorrow",
-      caption: "Showing the highest level forecast for tomorrow, in each city's own day.",
+      // "UV index tomorrow" said in so many words: it is searched for (over 1k a
+      // month in the US) and this page is where it is answered.
+      caption: "Showing the UV index tomorrow: the highest level forecast in each city's own day.",
       value: (r) => r.tomorrow,
     });
   }
@@ -373,6 +375,29 @@ function CountryOutline({
   );
 }
 
+/** "the United States", "the United Kingdom" -- a country's name inside a sentence. */
+export function inProse(name: string): string {
+  return /^United /.test(name) ? `the ${name}` : name;
+}
+
+/**
+ * The page title. Where there is no instrument -- the United States -- the page
+ * leads with "UV Index Today", because "uv index today" is the single biggest
+ * search the research found (over 100k a month in the US) with no small site in
+ * its top ten, and this page is the answer to it. Where readings are measured,
+ * the country's own name leads: "uv index australia" is the search there.
+ */
+export function countryTitle(name: string, measured: boolean): string {
+  return measured
+    ? `UV Index ${name} Today and Tomorrow: Every City`
+    : `UV Index Today and Tomorrow in ${inProse(name)}: Every City`;
+}
+
+/** The H1, in step with the title. */
+export function countryHeading(name: string, measured: boolean): string {
+  return measured ? `UV Index ${name}` : `UV index today across ${inProse(name)}`;
+}
+
 export function CountryPage(view: CountryView) {
   const { country, rows, now } = view;
   const withReading = rows.filter((r) => r.uvi !== null && !r.stale);
@@ -385,16 +410,14 @@ export function CountryPage(view: CountryView) {
   // ones: "uv index <country>" and "uv index tomorrow <country>". The title,
   // the description and the table heading below all say "tomorrow" on purpose,
   // and the heading doubles as the #tomorrow anchor.
-  const title = view.measured
-    ? `UV Index ${country.name} Today and Tomorrow: Every City`
-    : `UV Index ${country.name} Today and Tomorrow: Forecast for Every City`;
+  const title = countryTitle(country.name, view.measured);
   const description = view.measured
     ? `Live UV index for ${country.name}, measured by ARPANSA and updated every few ` +
       "minutes, with tomorrow's forecast peak for every city. Band and sun " +
       "protection guidance for each station."
-    : `UV index forecast for cities across ${country.name} today and tomorrow, from ` +
-      "the US Environmental Protection Agency and Copernicus. Peak level, band and " +
-      "sun protection guidance.";
+    : `UV index forecast for cities across ${inProse(country.name)} today and ` +
+      "tomorrow, from the US Environmental Protection Agency and Copernicus. Peak " +
+      "level, band and sun protection guidance.";
   const path = `/${country.code}/`;
 
   const structuredData = [
@@ -426,7 +449,7 @@ export function CountryPage(view: CountryView) {
     >
       <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + tipRules(rows) }} />
 
-      <h1>UV Index {country.name}</h1>
+      <h1>{countryHeading(country.name, view.measured)}</h1>
 
       {highest ? (
         <div class="lead">
@@ -474,7 +497,7 @@ export function CountryPage(view: CountryView) {
       <h2 id="tomorrow">
         {view.measured
           ? `UV index today and tomorrow in ${country.name}`
-          : `UV index today and tomorrow across ${country.name}`}
+          : `UV index today and tomorrow across ${inProse(country.name)}`}
       </h2>
       <table>
         <thead>

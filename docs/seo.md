@@ -25,7 +25,7 @@ catch the searches that lead to it.
 |---|---|---|
 | `/` | uv index, uv index map | UV Index Today and Tomorrow: Australia and the United States |
 | `/au/` | uv index australia, uv index today | UV Index Australia Today and Tomorrow: Every City |
-| `/us/` | uv index today, uv index usa | UV Index United States Today and Tomorrow: Forecast for Every City |
+| `/us/` | uv index today, uv index tomorrow | UV Index Today and Tomorrow in the United States: Every City |
 | `/au/{city}/` | uv index perth, perth uv today | UV Index {City} Today: Live Reading and Forecast |
 | `/us/{city}-{st}/` | uv index miami, miami uv today | UV Index {City}, {ST} Today: Hourly Forecast |
 | `/uv-index-explained/` | what is the uv index, uv index scale | UV Index Explained: What the Numbers Mean and When to Cover Up |
