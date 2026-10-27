@@ -17,7 +17,7 @@ Read `docs/architecture.md` before changing anything structural.
 ## Commands
 
 ```sh
-npm test              # vitest, 46 tests, no network
+npm test              # vitest, 225 tests, no network
 npm run typecheck     # both tsconfigs
 npm run dev           # wrangler dev on :8787
 npm run db:init:local # apply schema.sql to the local D1
@@ -67,6 +67,11 @@ To exercise the cron locally, start `npm run dev` and
   data lands, not when a page is viewed: D1 Free bills rows *examined*, and the
   daily allowance ran out on 26 October from pages recomputing on every view.
   `test/query-plans.test.ts` enforces it. See `docs/architecture.md`.
+- **An upsert writes only when the value changed** (`WHERE ... IS NOT
+  excluded...`). D1 Free allows 100,000 rows written a day, each readings row
+  costs two (table and index), and the feeds repeat themselves: on 27 October
+  rewriting unchanged values passed the limit by mid-afternoon UTC and writes
+  were refused until midnight.
 - **A title may not promise what the page has not got.** US city pages have no
   instrument, so they say "Hourly Forecast", not "Live Reading". Fifty of them
   shipped claiming one. See `docs/seo.md`.

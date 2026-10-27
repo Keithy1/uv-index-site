@@ -43,8 +43,13 @@ export async function saveReadings(db: D1Database, readings: readonly Reading[])
      ON CONFLICT (location_id, source, kind, valid_at) DO UPDATE SET
        uvi = excluded.uvi,
        issued_at = excluded.issued_at,
-       fetched_at = excluded.fetched_at`,
+       fetched_at = excluded.fetched_at
+     WHERE readings.uvi IS NOT excluded.uvi`,
   );
+  // The WHERE makes an unchanged value cost no write at all. ARPANSA's feed
+  // carries the whole day, so every five-minute run re-saves readings already
+  // held; on 27 October 2026 rewrites like these, across all three sources,
+  // took the account past D1's 100,000 rows written a day.
 
   let written = 0;
   for (let i = 0; i < readings.length; i += BATCH_SIZE) {

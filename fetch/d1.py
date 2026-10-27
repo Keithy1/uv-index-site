@@ -12,6 +12,14 @@ Two properties this file has to guarantee:
     overlapping, costs one write per row rather than one row per write. That is
     what keeps us inside D1's free allowance of 100,000 writes a day.
 
+  * **No write for a value we already hold.** The upsert only updates when uvi
+    has changed, and each instant is written once per file. On 27 October 2026
+    the account passed 100,000 rows written by mid-afternoon UTC: EPA's hourly
+    run rewrote the same day's figures 24 times over, the evening CAMS run
+    re-fetched the morning's 00Z forecast unchanged, and CAMS's two-run window
+    wrote every overlapping hour twice. Every write also costs a second one in
+    the readings_window index.
+
   * **No string injection.** Values are quoted here rather than interpolated
     trustingly. Location ids and source names come from our own tables, but a
     numeric field arriving as text from a feed would otherwise produce SQL that
@@ -46,10 +54,31 @@ def _number(value) -> str:
     return repr(round(number, 3))
 
 
+def newest_per_instant(records: list[Record]) -> list[Record]:
+    """One record per (location, source, kind, instant): the latest issued.
+
+    CAMS is requested for yesterday's run and today's, so most instants arrive
+    twice. Both would be written, and the later statement in the file would win
+    -- by accident of order, at the cost of a write each.
+    """
+    best: dict[tuple, Record] = {}
+    for r in records:
+        if r.kind == "forecast_daily":
+            continue
+        key = (r.location, r.source, r.kind, r.valid_at)
+        held = best.get(key)
+        if held is None or (r.issued_at or datetime.min.replace(tzinfo=r.valid_at.tzinfo)) >= (
+            held.issued_at or datetime.min.replace(tzinfo=r.valid_at.tzinfo)
+        ):
+            best[key] = r
+    keep = {id(r) for r in best.values()}
+    return [r for r in records if r.kind == "forecast_daily" or id(r) in keep]
+
+
 def statements(records: list[Record]) -> list[str]:
     """One upsert per record, plus one per clear-sky twin where present."""
     out: list[str] = []
-    for r in records:
+    for r in newest_per_instant(records):
         if r.kind == "forecast_daily":
             out.append(daily_statement(r))
             continue
@@ -69,7 +98,11 @@ def statements(records: list[Record]) -> list[str]:
                 f"{_iso(r.valid_at)}, {_number(uvi)}, {_iso(r.issued_at)}, {_iso(r.fetched_at)}"
                 ") ON CONFLICT (location_id, source, kind, valid_at) DO UPDATE SET "
                 "uvi = excluded.uvi, issued_at = excluded.issued_at, "
-                "fetched_at = excluded.fetched_at;"
+                "fetched_at = excluded.fetched_at "
+                # Unchanged: no write at all. issued_at and fetched_at go stale
+                # on such a row, which nothing reads for freshness --
+                # source_health records when a source last delivered.
+                "WHERE readings.uvi IS NOT excluded.uvi;"
             )
     return out
 
@@ -121,5 +154,8 @@ def daily_statement(r: Record) -> str:
         f"{_number(r.uvi)}, NULL, {alert}, {_iso(r.issued_at)}, {_iso(r.fetched_at)}) "
         "ON CONFLICT (location_id, local_date, source) DO UPDATE SET "
         "peak_uvi = excluded.peak_uvi, alert = excluded.alert, "
-        "issued_at = excluded.issued_at, fetched_at = excluded.fetched_at;"
+        "issued_at = excluded.issued_at, fetched_at = excluded.fetched_at "
+        # EPA repeats the same day's peak every hour; as for readings, an
+        # unchanged row costs no write.
+        "WHERE daily.peak_uvi IS NOT excluded.peak_uvi OR daily.alert IS NOT excluded.alert;"
     )

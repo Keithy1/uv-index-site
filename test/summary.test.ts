@@ -50,6 +50,7 @@ function d1(): D1Database {
   return {
     prepare: (sql: string) => statement(sql),
     batch: async (stmts: { exec: () => unknown }[]) => stmts.map((s) => s.exec()),
+    raw: db,
   } as unknown as D1Database;
 }
 
@@ -176,6 +177,20 @@ describe("rebuildForecasts", () => {
       [iso(0), 5.79],
       [iso(1), 4],
     ]);
+  });
+
+  it("writes nothing when a reading arrives again unchanged", async () => {
+    // 27 October 2026: re-saving values already held, every five minutes and
+    // every hour, took the account past D1's 100,000 rows written a day.
+    const db = d1();
+    const raw = (db as unknown as { raw: DatabaseSync }).raw;
+    const changes = () => Number(raw.prepare("SELECT total_changes() AS n").get()!.n);
+    await saveReadings(db, [measured("au-per", iso(0), 4.6)]);
+    const before = changes();
+    await saveReadings(db, [{ ...measured("au-per", iso(0), 4.6), fetchedAt: iso(1) }]);
+    expect(changes()).toBe(before);
+    await saveReadings(db, [measured("au-per", iso(0), 4.7)]);
+    expect(changes()).toBe(before + 1);
   });
 
   it("does not let a forecast rebuild disturb the measured reading", async () => {

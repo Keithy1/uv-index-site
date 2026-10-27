@@ -74,6 +74,22 @@ class StatementTests(unittest.TestCase):
         rows = self.db.execute("SELECT uvi FROM readings").fetchall()
         self.assertEqual(rows, [(9.5,)])
 
+    def test_an_unchanged_value_is_not_written_again(self):
+        # 27 October 2026: rewriting identical values took the account past
+        # D1's 100,000 rows written a day.
+        self.apply(statements([record()]))
+        before = self.db.total_changes
+        self.apply(statements([record(issued_at=datetime(2026, 10, 25, 12, tzinfo=timezone.utc))]))
+        self.assertEqual(self.db.total_changes, before)
+
+    def test_an_instant_arriving_twice_is_written_once_from_the_newer_run(self):
+        older = record(uvi=7.0, issued_at=datetime(2026, 10, 24, tzinfo=timezone.utc))
+        newer = record(uvi=8.0, issued_at=datetime(2026, 10, 25, tzinfo=timezone.utc))
+        for order in ([older, newer], [newer, older]):
+            rows = statements(order)
+            self.assertEqual(len(rows), 1)
+            self.assertIn("8.0", rows[0])
+
     def test_clear_sky_is_written_as_its_own_series(self):
         self.apply(statements([record(extra={"clear_sky_uvi": 9.1})]))
         rows = dict(self.db.execute("SELECT kind, uvi FROM readings").fetchall())
