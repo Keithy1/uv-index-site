@@ -8,7 +8,7 @@ import {
   peakOnLocalDay,
   pointsOnLocalDay,
 } from "../src/lib/current";
-import { roundForBand } from "../src/lib/uv";
+import { bandFor, roundForBand } from "../src/lib/uv";
 
 const NOW = new Date("2026-10-26T14:00:00Z");
 const at = (iso: string, uvi: number) => ({ validAt: iso, uvi });
@@ -172,6 +172,48 @@ describe("adviceLevel", () => {
     ];
     const a = adviceLevel({ now: 10, today: afternoon, tomorrowPeak: 11.3, nowMinutes: 13 * 60 + 30 });
     expect(a).toEqual({ uvi: 10, scope: "now" });
+  });
+
+  it("does not call a forecast 'later today' when it is only a measurement's neighbour", () => {
+    // Alice Springs, 1:20 pm: instrument 9.3, the 1:30 pm forecast point 9.8,
+    // the curve falling after. The page said "forecast to reach 9.8 later
+    // today". Same band, same advice: describe now.
+    const afternoon = [
+      { minutes: 13 * 60 + 30, uvi: 9.8 },
+      { minutes: 14 * 60 + 30, uvi: 5.1 },
+      { minutes: 15 * 60 + 30, uvi: 2.2 },
+    ];
+    const a = adviceLevel({ now: 9.3, today: afternoon, tomorrowPeak: 11.3, nowMinutes: 13 * 60 + 20 });
+    expect(a).toEqual({ uvi: 9.3, scope: "now" });
+  });
+
+  it("still says 'later today' when a later hour reaches a higher band", () => {
+    // Morning: High now, Extreme by midday.
+    const morning = [{ minutes: 11 * 60, uvi: 9.5 }, { minutes: 12 * 60, uvi: 12 }];
+    expect(adviceLevel({ now: 6.2, today: morning, tomorrowPeak: 11, nowMinutes: 9 * 60 }))
+      .toEqual({ uvi: 12, scope: "today" });
+    // Right at a boundary: 10.4 is Very High, 10.6 is Extreme.
+    expect(adviceLevel({ now: 10.4, today: [{ minutes: 13 * 60, uvi: 10.6 }], tomorrowPeak: 9, nowMinutes: 12 * 60 }))
+      .toEqual({ uvi: 10.6, scope: "today" });
+  });
+
+  it("never advises for a lower band than is coming today", () => {
+    // The safety property, in the terms the advice is actually given: whatever
+    // the hour and however the reading compares with the forecast.
+    const rank = (v: number) => ["Low", "Moderate", "High", "Very High", "Extreme"].indexOf(bandFor(v).name);
+    const today = day(12.5);
+    for (let h = 5; h < 21; h++) {
+      for (const offset of [-2, -0.5, 0, 0.5, 2]) {
+        const here = today.find((p) => p.minutes === h * 60)?.uvi ?? 0;
+        const now = Math.max(0, here + offset);
+        const ahead = today.filter((p) => p.minutes >= h * 60 + 20).map((p) => p.uvi);
+        const a = adviceLevel({ now, today, tomorrowPeak: 3, nowMinutes: h * 60 + 20 });
+        const coming = Math.max(now, ...ahead);
+        if (a && a.scope !== "tomorrow") {
+          expect(rank(a.uvi), `hour ${h}, offset ${offset}`).toBeGreaterThanOrEqual(rank(coming));
+        }
+      }
+    }
   });
 
   it("turns to tomorrow once the rest of today is below 3", () => {

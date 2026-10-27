@@ -15,7 +15,7 @@
  * without a database or a clock.
  */
 import { localDateKey, localMinutes } from "./time";
-import { PROTECTION_THRESHOLD, roundForBand } from "./uv";
+import { bandFor, PROTECTION_THRESHOLD, roundForBand } from "./uv";
 
 export interface ForecastPoint {
   readonly validAt: string;
@@ -146,6 +146,18 @@ export function adviceLevel(opts: {
   // 11.3. The switch is meant for the evening, once today is spent -- not for
   // any afternoon that happens to come after a higher morning.
   if (todayBest !== null && roundForBand(todayBest) >= PROTECTION_THRESHOLD) {
+    // "Later today" only when a later hour reaches a higher band than now.
+    // At 1:20 pm in Alice Springs the page said "forecast to reach 9.8 later
+    // today" with the instrument at 9.3 and the curve already falling: the
+    // 9.8 was the 1:30 pm forecast point, ten minutes away, disagreeing with
+    // the measurement by half a point -- well inside the forecast's typical
+    // error of 1.2. Within a band the advice is identical (whatToDo is keyed
+    // by band), so nothing is lost by describing now; across a band boundary
+    // the higher level still wins, so the advice is never weaker than what is
+    // coming.
+    if (current !== null && bandFor(todayBest).name === bandFor(current).name) {
+      return { uvi: current, scope: "now" };
+    }
     return { uvi: todayBest, scope: current !== null && todayBest <= current ? "now" : "today" };
   }
 
