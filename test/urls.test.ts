@@ -102,3 +102,12 @@ describe("files that are not pages", () => {
     expect(canonicalPath("/au/st.kilda")).toBe("/au/st.kilda/");
   });
 });
+
+describe("the icons", () => {
+  it("are files, so neither is slashed into a 301", () => {
+    // Every browser asks for /favicon.ico on every page; it answered 404 until
+    // 27 October. Both icons are on the FILE_PATHS allowlist, like the share image.
+    expect(canonicalPath("/favicon.ico")).toBeNull();
+    expect(canonicalPath("/apple-touch-icon.png")).toBeNull();
+  });
+});

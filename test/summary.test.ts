@@ -226,7 +226,7 @@ describe("countryData", () => {
   it("returns a row for every city asked for, data or not", async () => {
     const rows = await countryData(d1(), ["au-per", "us-miami-fl"], NOW);
     expect([...rows.keys()]).toEqual(["au-per", "us-miami-fl"]);
-    expect(rows.get("au-per")).toEqual({ locationId: "au-per", latest: null, forecast: [] });
+    expect(rows.get("au-per")).toEqual({ locationId: "au-per", latest: null, forecast: [], alerts: [] });
   });
 });
 
@@ -263,5 +263,45 @@ describe("retention", () => {
     await noteMeasured(db, [measured("au-per", iso(-24 * RETENTION_DAYS - 5), 2)]);
     await pruneReadings(db, NOW);
     expect((await countryData(db, ["au-per"], NOW)).get("au-per")!.latest).not.toBeNull();
+  });
+});
+
+describe("EPA UV Alerts", () => {
+  /** A daily row as fetch/d1.py writes it. */
+  async function daily(db: D1Database, id: string, date: string, alert: 0 | 1, source = "epa") {
+    await db
+      .prepare(
+        `INSERT INTO daily (location_id, local_date, source, peak_uvi, alert, fetched_at)
+         VALUES (?1, ?2, ?3, 9, ?4, ?5)`,
+      )
+      .bind(id, date, source, alert, iso(0))
+      .run();
+  }
+
+  it("carries the dates EPA flagged into the summary, and only those", async () => {
+    const db = d1();
+    await daily(db, "us-phoenix-az", "2026-10-27", 1);
+    await daily(db, "us-phoenix-az", "2026-10-28", 0);
+    await daily(db, "us-miami-fl", "2026-10-27", 0);
+    await rebuildForecasts(db, ["us-phoenix-az", "us-miami-fl"], NOW);
+    const rows = await countryData(db, ["us-phoenix-az", "us-miami-fl"], NOW);
+    expect(rows.get("us-phoenix-az")!.alerts).toEqual(["2026-10-27"]);
+    expect(rows.get("us-miami-fl")!.alerts).toEqual([]);
+  });
+
+  it("clears an alert EPA has withdrawn, at the next rebuild", async () => {
+    const db = d1();
+    await daily(db, "us-phoenix-az", "2026-10-27", 1);
+    await rebuildForecasts(db, ["us-phoenix-az"], NOW);
+    await db.prepare("UPDATE daily SET alert = 0").run();
+    await rebuildForecasts(db, ["us-phoenix-az"], NOW);
+    expect((await countryData(db, ["us-phoenix-az"], NOW)).get("us-phoenix-az")!.alerts).toEqual([]);
+  });
+
+  it("ignores alerts from anything but EPA", async () => {
+    const db = d1();
+    await daily(db, "us-phoenix-az", "2026-10-27", 1, "cams");
+    await rebuildForecasts(db, ["us-phoenix-az"], NOW);
+    expect((await countryData(db, ["us-phoenix-az"], NOW)).get("us-phoenix-az")!.alerts).toEqual([]);
   });
 });

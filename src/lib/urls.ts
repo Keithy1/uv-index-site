@@ -26,6 +26,7 @@ const FILE_PATHS = new Set([
   // here: /og-image.png was served, then 301'd to /og-image.png/, which is not
   // a route -- so every share preview would have had a broken picture.
   "/og-image.png",
+  "/apple-touch-icon.png",
 ]);
 
 function isFilePath(path: string): boolean {

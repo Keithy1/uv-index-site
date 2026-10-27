@@ -10,6 +10,7 @@
  */
 import { Hono } from "hono";
 
+import { FAVICON_BYTES, FAVICON_PATH, TOUCH_ICON_BYTES, TOUCH_ICON_PATH } from "./assets/icons";
 import { OG_IMAGE_BYTES, OG_IMAGE_PATH } from "./assets/og-image";
 
 import { buildCurve } from "./lib/chart";
@@ -60,6 +61,7 @@ import { HomePage } from "./views/HomePage";
 import { About, Privacy, Terms } from "./views/pages/Legal";
 import { Guide } from "./views/pages/Guide";
 import { Methods } from "./views/pages/Methods";
+import { NotFound } from "./views/NotFound";
 import { Unavailable } from "./views/Unavailable";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -372,6 +374,30 @@ app.get(OG_IMAGE_PATH, () => {
   });
 });
 
+/** The icons, immutable for the same reason as the share image. */
+for (const [path, bytes, type] of [
+  [FAVICON_PATH, FAVICON_BYTES, "image/x-icon"],
+  [TOUCH_ICON_PATH, TOUCH_ICON_BYTES, "image/png"],
+] as const) {
+  app.get(path, () => new Response(bytes, {
+    headers: { "Content-Type": type, "Cache-Control": "public, max-age=31536000, immutable" },
+  }));
+}
+
+/**
+ * A page for a URL that is not one, with the ways on.
+ *
+ * Hono's default is the words "404 Not Found" and nothing else. The design
+ * asked for a real page: the status stays 404 so nothing is indexed, but a
+ * reader who followed a stale link lands somewhere they can leave from.
+ * Every c.notFound() in the routes -- an unknown country, a city with no page
+ * -- comes through here too.
+ */
+app.notFound((c) => {
+  c.header("Cache-Control", "public, max-age=300");
+  return c.html(<NotFound />, 404);
+});
+
 /** UTC window generous enough to contain any city's local day. */
 function dayWindow(now: Date): { from: string; to: string } {
   const iso = (d: Date) => d.toISOString().slice(0, 19) + "Z";
@@ -426,6 +452,7 @@ app.get("/:country/", async (c) => {
       peak: todayPeak?.uvi ?? null,
       tomorrow: tomorrowPeak?.uvi ?? null,
       tomorrowMinutes: tomorrowPeak?.minutes ?? null,
+      alert: (row?.alerts ?? []).includes(today),
     };
   });
 

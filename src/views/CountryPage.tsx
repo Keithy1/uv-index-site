@@ -29,6 +29,8 @@ export interface CityRow {
    */
   readonly tomorrow: number | null;
   readonly tomorrowMinutes: number | null;
+  /** EPA has issued a UV Alert for this city today. US only; always false elsewhere. */
+  readonly alert: boolean;
 }
 
 /** The generated outline for one country, passed in rather than imported. */
@@ -67,6 +69,8 @@ padding:16px;margin:16px 0}
 letter-spacing:-.03em}
 .lead .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .band{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
+.alert{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:.72rem;
+font-weight:700;letter-spacing:.02em;background:#d32010;color:#fff;vertical-align:middle}
 .mapbox{border:1px solid var(--line);border-radius:12px;background:var(--card);
 padding:8px;margin:8px 0}
 .mapbox svg{display:block;width:100%;height:auto}
@@ -488,6 +492,11 @@ export function CountryPage(view: CountryView) {
                   <a href={`/${r.location.country}/${r.location.slug}/`}>{r.location.name}</a>
                 ) : (
                   r.location.name
+                )}
+                {r.alert && (
+                  <span class="alert" title="EPA has issued a UV Alert for today">
+                    UV Alert
+                  </span>
                 )}
               </th>
               <UviCell uvi={r.uvi} />

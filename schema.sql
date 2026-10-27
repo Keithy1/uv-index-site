@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS city_now (
   measured_at        TEXT,                 -- ISO 8601 UTC; staleness is judged at render
   measured_source    TEXT,
   forecast_json      TEXT,                 -- [["2026-10-27T03:00:00Z", 5.2], ...]
+  alerts_json        TEXT,                 -- ["2026-10-27"]: local dates with an EPA UV Alert
   forecast_built_at  TEXT                  -- ISO 8601 UTC
 ) WITHOUT ROWID;
 

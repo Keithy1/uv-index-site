@@ -288,6 +288,8 @@ export interface CountryRow {
   readonly latest: LatestReading | null;
   /** Forecast points around today, for the level now and today's peak. */
   readonly forecast: readonly ForecastPoint[];
+  /** Local dates ("2026-10-27") on which EPA has issued a UV Alert here. */
+  readonly alerts: readonly string[];
 }
 
 /**
@@ -316,7 +318,7 @@ export async function countryData(
 
   const { results, meta } = await db
     .prepare(
-      `SELECT location_id, measured_uvi, measured_at, measured_source, forecast_json
+      `SELECT location_id, measured_uvi, measured_at, measured_source, forecast_json, alerts_json
        FROM city_now
        WHERE location_id IN (${placeholders})`,
     )
@@ -327,6 +329,7 @@ export async function countryData(
       measured_at: string | null;
       measured_source: string | null;
       forecast_json: string | null;
+      alerts_json: string | null;
     }>();
   charge("cityNow", meta);
 
@@ -347,7 +350,12 @@ export async function countryData(
             stale: Date.parse(row.measured_at) < cutoff,
           }
         : null;
-    out.set(id, { locationId: id, latest, forecast: parseForecast(row?.forecast_json ?? null) });
+    out.set(id, {
+      locationId: id,
+      latest,
+      forecast: parseForecast(row?.forecast_json ?? null),
+      alerts: parseDates(row?.alerts_json ?? null),
+    });
   }
   return out;
 }
@@ -372,6 +380,17 @@ function parseForecast(json: string | null): ForecastPoint[] {
       }
     }
     return out;
+  } catch {
+    return [];
+  }
+}
+
+/** The stored alert dates. Malformed yields none, for the same reason as above. */
+function parseDates(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const dates = JSON.parse(json) as unknown;
+    return Array.isArray(dates) ? dates.filter((d): d is string => typeof d === "string") : [];
   } catch {
     return [];
   }
@@ -496,16 +515,37 @@ export async function rebuildForecasts(
   for (const id of locationIds) series.set(id, []);
   for (const r of results) series.get(r.location_id)?.push([r.valid_at, r.uvi]);
 
+  // EPA's UV Alert arrives in the same run as its forecast, so it is carried
+  // into city_now here rather than read by the page. Local dates, so the page
+  // can ask "is there one for today, here" without knowing about zones twice.
+  // The local_date range is wide and generous because it is a string compare
+  // on dates in every US zone; a day either side costs a handful of rows.
+  const alertRows = await db
+    .prepare(
+      `SELECT location_id, local_date
+       FROM daily
+       WHERE location_id IN (${placeholders})
+         AND local_date >= ?1 AND local_date <= ?2
+         AND source = 'epa' AND alert = 1`,
+    )
+    .bind(from.slice(0, 10), to.slice(0, 10), ...locationIds)
+    .all<{ location_id: string; local_date: string }>();
+  const alerts = new Map<string, string[]>();
+  for (const r of alertRows.results) {
+    alerts.set(r.location_id, [...(alerts.get(r.location_id) ?? []), r.local_date]);
+  }
+
   const builtAt = toIsoUtc(now);
   const upsert = db.prepare(
-    `INSERT INTO city_now (location_id, forecast_json, forecast_built_at)
-     VALUES (?1, ?2, ?3)
+    `INSERT INTO city_now (location_id, forecast_json, alerts_json, forecast_built_at)
+     VALUES (?1, ?2, ?3, ?4)
      ON CONFLICT (location_id) DO UPDATE SET
        forecast_json = excluded.forecast_json,
+       alerts_json = excluded.alerts_json,
        forecast_built_at = excluded.forecast_built_at`,
   );
   const statements = [...series].map(([id, points]) =>
-    upsert.bind(id, JSON.stringify(points), builtAt),
+    upsert.bind(id, JSON.stringify(points), JSON.stringify(alerts.get(id) ?? []), builtAt),
   );
   for (let i = 0; i < statements.length; i += BATCH_SIZE) {
     await db.batch(statements.slice(i, i + BATCH_SIZE));

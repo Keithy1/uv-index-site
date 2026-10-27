@@ -77,6 +77,8 @@ export function Layout(props: Props) {
         <title>{props.title}</title>
         <meta name="description" content={props.description} />
         <link rel="canonical" href={canonical} />
+        <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content={SITE} />
         <meta property="og:title" content={props.title} />
