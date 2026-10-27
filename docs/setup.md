@@ -161,6 +161,25 @@ The `health-check.yml` workflow remains as a backstop. It is not a substitute:
 it runs on GitHub's scheduler, which this project measured dropping runs for
 sixteen hours.
 
+## 3e. Google Search Console — DONE (27 October 2026)
+
+`uvatlas.com` is a **Domain** property (covers http, https and www), verified
+by DNS. The record is in Cloudflare → uvatlas.com → DNS:
+
+    TXT  @  google-site-verification=K5AdjoOq4R6KESDO-Bb5V89YSckrls_ZFYLcf40JHnc
+
+**Do not delete it** — Search Console re-checks it and drops the property if
+it disappears. The token is public by design; it proves ownership only while
+it sits in this domain's DNS.
+
+Google offered to add the record itself by connecting to the Cloudflare
+account. Declined: one manual record does not need standing account access.
+
+Still to do at launch: flip `SITE_INDEXABLE` to `"true"`, deploy, then submit
+`https://uvatlas.com/sitemap.xml` here. Not before — while the site is
+`noindex` and robots.txt disallows everything, every URL would report as
+blocked. Bing Webmaster Tools can then import this property in one step.
+
 ## 4. ARPANSA — blocks advertising in Australia, not the build
 
 ARPANSA's terms allow free use of the real-time feed with credit, but
