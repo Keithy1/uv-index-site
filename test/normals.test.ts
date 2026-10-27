@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CityNormals, MonthNormal } from "../src/lib/normals";
+import { locationsIn } from "../src/lib/locations";
 import { normalsFor, shareOfDays } from "../src/lib/normals";
 import { ThisTimeOfYear } from "../src/views/ThisTimeOfYear";
 
@@ -85,5 +86,53 @@ describe("This time of year", () => {
 describe("normalsFor", () => {
   it("returns nothing for a city it has no record of", () => {
     expect(normalsFor("xx-nowhere")).toBeNull();
+  });
+});
+
+describe("data/normals.json", () => {
+  /**
+   * The committed figures themselves, so a bad recompute fails CI rather than
+   * reaching a page. Both of these happened on the first run: every station
+   * lost 2016 to a layout the parser did not know, and every US city claimed
+   * "2015-2025" from the single 1 January 2025 bulletin.
+   */
+  const au = locationsIn("au").filter((l) => l.status === "live");
+
+  it("covers every Australian city, all twelve months", () => {
+    for (const loc of au) {
+      const n = normalsFor(loc.id);
+      expect(n, loc.id).not.toBeNull();
+      expect(n!.source, loc.id).toBe("arpansa");
+      expect(n!.months.filter(Boolean), loc.id).toHaveLength(12);
+    }
+  });
+
+  it("uses a full ten years wherever the station has them", () => {
+    // Emerald's record begins in 2019 and the Gold Coast's in 2018; every
+    // other station has the whole decade, and losing a year means a parser
+    // has stopped understanding a file.
+    const late: Record<string, number> = { "au-emd": 2019, "au-gco": 2018 };
+    for (const loc of au) {
+      const n = normalsFor(loc.id)!;
+      expect(n.years[0], loc.id).toBe(late[loc.id] ?? 2016);
+      expect(n.years[1], loc.id).toBe(2025);
+    }
+  });
+
+  it("covers at least 36 US cities, with no year range that overclaims", () => {
+    const us = locationsIn("us").filter((l) => normalsFor(l.id) !== null);
+    expect(us.length).toBeGreaterThanOrEqual(36);
+    for (const loc of us) {
+      const n = normalsFor(loc.id)!;
+      expect(n.source, loc.id).toBe("noaa");
+      expect(n.years, loc.id).toEqual([2015, 2024]);
+    }
+  });
+
+  it("names the borrowed city for every proxy, within 60 km", () => {
+    for (const loc of locationsIn("us")) {
+      const via = normalsFor(loc.id)?.via;
+      if (via) expect(via.km, loc.id).toBeLessThanOrEqual(60);
+    }
   });
 });

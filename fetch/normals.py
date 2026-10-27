@@ -246,6 +246,11 @@ def bulletins(years: range) -> dict[date, dict[tuple[str, str], int]]:
             if parsed is None:
                 skipped += 1
                 continue
+            # A bulletin is for the day after it was issued, so the last one of
+            # a year forecasts 1 January of the next. Kept, that one day made
+            # every US city claim "2015-2025" for a 2015-2024 run.
+            if parsed[0].year not in years:
+                continue
             out[parsed[0]] = parsed[1]
             time.sleep(0.1)  # one request at a time, politely
         print(f"  NOAA {year}: {len(names) - skipped} bulletins, {skipped} skipped", file=sys.stderr)
@@ -317,12 +322,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default=str(OUT))
     ap.add_argument("--skip-au", action="store_true")
     ap.add_argument("--skip-us", action="store_true")
+    ap.add_argument("--merge", action="store_true",
+                    help="keep the cities already in --out and replace only those recomputed")
     args = ap.parse_args(argv)
 
     span = lambda s: range(int(s.split("-")[0]), int(s.split("-")[1]) + 1)
     only = {s.strip() for s in args.only.split(",") if s.strip()} or None
 
     cities: dict[str, dict] = {}
+    if args.merge and Path(args.out).exists():
+        cities.update(json.loads(Path(args.out).read_text(encoding="utf8"))["cities"])
     if not args.skip_au:
         cities.update(australia(span(args.au_years), args.cache, args.keep, only))
     if not args.skip_us:

@@ -24,7 +24,9 @@ export const NORMALS_CSS = `
 
 /** Twelve bars of the median daily peak, this month outlined. Server-drawn. */
 function MonthStrip({ normals, month }: { normals: CityNormals; month: number }) {
-  const W = 420, H = 96, top = 6, base = 74, gap = 6;
+  // H leaves room under the bars for the month letters and, under this month,
+  // its value -- a first cut at 96 clipped that value off the bottom edge.
+  const W = 420, H = 108, top = 6, base = 74, gap = 6;
   const bar = (W - gap * 11) / 12;
   const scale = (base - top) / 14; // UV 14 fills the height; higher is clipped
   const label = normals.months
