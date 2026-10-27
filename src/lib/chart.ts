@@ -153,11 +153,21 @@ export function minutesToClock(minutes: number): string {
  *
  * Example: "Peak 11.0 at 12:20 pm; protection needed from 8:50 am to 3:40 pm."
  */
-export function describeCurve(points: readonly CurvePoint[]): string {
+/** The highest point on the drawn part of the day, or null if none is drawn. */
+export function curvePeak(points: readonly CurvePoint[]): CurvePoint | null {
   const visible = points.filter((p) => p.minutes >= START_MINUTES && p.minutes <= END_MINUTES);
-  if (visible.length === 0) return "No forecast available for today.";
+  return visible.length === 0 ? null : visible.reduce((a, b) => (b.uvi > a.uvi ? b : a));
+}
 
-  const peak = visible.reduce((a, b) => (b.uvi > a.uvi ? b : a));
+/** Said after the peak when cloud keeps the whole day below protection level. */
+export const LOW_CLOUD_NOTE =
+  "Cloud is forecast to keep UV below the level at which sun protection is usually advised, " +
+  "but it can clear at any time.";
+
+export function describeCurve(points: readonly CurvePoint[]): string {
+  const peak = curvePeak(points);
+  if (peak === null) return "No forecast available for today.";
+
   const headline = `Peak ${formatUvi(peak.uvi)} at ${minutesToClock(peak.minutes)}, with cloud included.`;
 
   // Deliberately no times here. This curve is cloud-adjusted, while the sun
@@ -167,8 +177,7 @@ export function describeCurve(points: readonly CurvePoint[]): string {
   // a cloudy day. The conservative clear-sky figure is the one that should be
   // acted on, so it gets to be the only one.
   if (peak.uvi < PROTECTION_THRESHOLD) {
-    return `${headline} Cloud is forecast to keep UV below the level at which ` +
-      "sun protection is usually advised, but it can clear at any time.";
+    return `${headline} ${LOW_CLOUD_NOTE}`;
   }
   return headline;
 }

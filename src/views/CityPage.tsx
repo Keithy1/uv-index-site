@@ -18,7 +18,7 @@ import type { Advice } from "../lib/current";
 import type { Location } from "../lib/locations";
 import { cityLabel, locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
-import { describeCurve, minutesToClock, protectionWindow } from "../lib/chart";
+import { curvePeak, describeCurve, LOW_CLOUD_NOTE, minutesToClock, protectionWindow } from "../lib/chart";
 import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
 import type { CityNormals } from "../lib/normals";
@@ -65,6 +65,7 @@ background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1
 .reading .n{font-size:3.4rem;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;
 letter-spacing:-.03em}
 .band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
+.peakfig{font-size:1.25rem;color:var(--fg);margin:0 2px}
 .advice{margin:6px 0 0}
 .delayed{border-left:4px solid #d32010;padding-left:12px;margin:12px 0}
 .chartbox{margin:8px 0 0;border:1px solid var(--line);border-radius:12px;padding:8px;
@@ -129,7 +130,7 @@ function whatToDo(uvi: number): string[] {
   ];
 }
 
-function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string }) {
+function Chart({ geometry, summary, peak }: { geometry: ChartGeometry; summary: string; peak: CurvePoint | null }) {
   const g = geometry;
   return (
     <>
@@ -185,7 +186,18 @@ function Chart({ geometry, summary }: { geometry: ChartGeometry; summary: string
           )}
         </svg>
       </div>
-      <p class="small muted">{summary}</p>
+      {peak ? (
+        <p class="small muted peakline">
+          Peak <strong class="peakfig">{formatUvi(peak.uvi)}</strong>{" "}
+          <span class="band" style={`background:${bandFor(peak.uvi).bg};color:${bandFor(peak.uvi).fg}`}>
+            {bandFor(peak.uvi).name}
+          </span>{" "}
+          at {minutesToClock(peak.minutes)}, with cloud included.
+          {peak.uvi < PROTECTION_THRESHOLD ? ` ${LOW_CLOUD_NOTE}` : ""}
+        </p>
+      ) : (
+        <p class="small muted">{summary}</p>
+      )}
     </>
   );
 }
@@ -341,7 +353,7 @@ export function CityPage(view: CityView) {
       {view.geometry && (
         <>
           <h2>Today's forecast</h2>
-          <Chart geometry={view.geometry} summary={describeCurve(view.curve)} />
+          <Chart geometry={view.geometry} summary={describeCurve(view.curve)} peak={curvePeak(view.curve)} />
         </>
       )}
 
