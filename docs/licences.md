@@ -29,8 +29,10 @@ no template can show a reading without its attribution.
   say charts are modification, remove the fallback; if they say yes, measured
   charts can be built properly.
 - **Letter sent 19 October 2026** to ARPANSA's UV team: developer notification,
-  the chart question, and prior written authorisation for advertising. No reply
-  as of 27 October. Still to do: send the site address at launch.
+  the chart question, and prior written authorisation for advertising.
+- **Site address sent 27 October 2026**, at launch, as the letter promised. No
+  reply to either yet. Until there is: no ads in Australia, and measured charts
+  only as the forecast-outage fallback above.
 
 ### Copernicus CAMS — forecasts
 - Dataset `cams-global-atmospheric-composition-forecasts` via the Atmosphere Data Store.
