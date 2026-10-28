@@ -269,6 +269,7 @@ app.get("/api/health", async (c) => {
         lastAttemptAt: row?.last_attempt_at ?? null,
         lastError: row?.last_error ?? (row ? null : "has never run"),
         recordsLastRun: row?.records_last_run ?? 0,
+        newestRun: row?.newest_run ?? null,
         ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
         healthy:
           source === "cams"

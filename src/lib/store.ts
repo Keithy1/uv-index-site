@@ -70,6 +70,8 @@ export interface HealthRow {
   readonly last_attempt_at: string | null;
   readonly last_error: string | null;
   readonly records_last_run: number;
+  /** Newest forecast run held, written by the fetchers (CAMS). */
+  readonly newest_run?: string | null;
 }
 
 /** Record the outcome of a source run, successful or not. */
@@ -103,7 +105,7 @@ export async function commitResult(db: D1Database, result: SourceResult): Promis
 
 export async function readHealth(db: D1Database): Promise<HealthRow[]> {
   const { results } = await db
-    .prepare(`SELECT source, last_ok_at, last_attempt_at, last_error, records_last_run
+    .prepare(`SELECT source, last_ok_at, last_attempt_at, last_error, records_last_run, newest_run
               FROM source_health ORDER BY source`)
     .all<HealthRow>();
   return results;

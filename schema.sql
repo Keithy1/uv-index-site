@@ -114,5 +114,11 @@ CREATE TABLE IF NOT EXISTS source_health (
   last_ok_at        TEXT,
   last_attempt_at   TEXT,
   last_error        TEXT,
-  records_last_run  INTEGER NOT NULL DEFAULT 0
+  records_last_run  INTEGER NOT NULL DEFAULT 0,
+  -- The newest forecast run held, ISO 8601 UTC (CAMS "2026-10-28T00:00:00Z").
+  -- Shown by /api/health, so which run the site is on is visible at a glance:
+  -- from 25 to 28 October 2026 it was a day behind and nothing said so.
+  -- Added to the live database with
+  --   ALTER TABLE source_health ADD COLUMN newest_run TEXT;
+  newest_run        TEXT
 );

@@ -107,15 +107,30 @@ def statements(records: list[Record]) -> list[str]:
     return out
 
 
-def health_statement(source: str, ok: bool, count: int, error: str | None, now: datetime) -> str:
+def health_statement(
+    source: str,
+    ok: bool,
+    count: int,
+    error: str | None,
+    now: datetime,
+    newest_run: datetime | None = None,
+) -> str:
+    """One upsert of the source's health row.
+
+    `newest_run` is the newest issued_at among the records, kept from the last
+    run that had one, so a failed fetch leaves the run we still hold on show.
+    Same row as the rest, so it costs no extra write.
+    """
     stamp = _iso(now)
+    run = _iso(newest_run) if newest_run else "NULL"
     return (
         "INSERT INTO source_health "
-        "(source, last_ok_at, last_attempt_at, last_error, records_last_run) VALUES ("
+        "(source, last_ok_at, last_attempt_at, last_error, records_last_run, newest_run) VALUES ("
         f"{quote(source)}, {stamp if ok else 'NULL'}, {stamp}, "
-        f"{quote(error) if error else 'NULL'}, {int(count)}"
+        f"{quote(error) if error else 'NULL'}, {int(count)}, {run}"
         ") ON CONFLICT (source) DO UPDATE SET "
         "last_ok_at = COALESCE(excluded.last_ok_at, source_health.last_ok_at), "
+        "newest_run = COALESCE(excluded.newest_run, source_health.newest_run), "
         "last_attempt_at = excluded.last_attempt_at, "
         "last_error = excluded.last_error, "
         "records_last_run = excluded.records_last_run;"

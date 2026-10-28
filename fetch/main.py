@@ -46,7 +46,9 @@ def main(argv: list[str] | None = None) -> int:
             failures += 1
         else:
             statements = d1.statements(records)
-            statements.append(d1.health_statement(name, bool(records), len(records), None, now))
+            issued = [r.issued_at for r in records if r.issued_at is not None]
+            newest = max(issued) if issued else None
+            statements.append(d1.health_statement(name, bool(records), len(records), None, now, newest))
             print(f"[{name}] {len(records)} records -> {len(statements)} statements")
 
         paths = d1.write_sql(statements, args.out, name)

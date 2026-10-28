@@ -1,4 +1,5 @@
 """Tests for the SQL that reaches the live database."""
+import pathlib
 import sqlite3
 import unittest
 from datetime import datetime, timezone
@@ -21,15 +22,10 @@ def record(**kw) -> Record:
     return Record(**base)
 
 
-SCHEMA = """
-CREATE TABLE readings (
-  location_id TEXT NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL,
-  valid_at TEXT NOT NULL, uvi REAL NOT NULL, issued_at TEXT, fetched_at TEXT NOT NULL,
-  PRIMARY KEY (location_id, source, kind, valid_at)) WITHOUT ROWID;
-CREATE TABLE source_health (
-  source TEXT PRIMARY KEY, last_ok_at TEXT, last_attempt_at TEXT,
-  last_error TEXT, records_last_run INTEGER NOT NULL DEFAULT 0);
-"""
+# The real schema, not a copy: a copy here fell behind when source_health
+# gained newest_run, and the tests would have passed against a table the live
+# database no longer matched.
+SCHEMA = (pathlib.Path(__file__).resolve().parents[2] / "schema.sql").read_text(encoding="utf8")
 
 
 class QuotingTests(unittest.TestCase):
@@ -129,6 +125,14 @@ class HealthTests(unittest.TestCase):
         self.assertEqual(row[2], "ADS timeout")
         self.assertEqual(row[3], 0)
 
+    def test_newest_run_survives_a_failed_fetch(self):
+        now = datetime(2026, 10, 28, 10, 45, tzinfo=timezone.utc)
+        run = datetime(2026, 10, 28, 0, 0, tzinfo=timezone.utc)
+        self.db.executescript(health_statement("cams", True, 7623, None, now, run))
+        self.db.executescript(health_statement("cams", False, 0, "not yet in the ADS", now))
+        row = self.db.execute("SELECT newest_run, last_error FROM source_health").fetchone()
+        self.assertEqual(row, ("2026-10-28T00:00:00Z", "not yet in the ADS"))
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -144,13 +148,7 @@ class DailyTests(unittest.TestCase):
 
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
-        self.db.executescript(SCHEMA + """
-        CREATE TABLE daily (
-          location_id TEXT NOT NULL, local_date TEXT NOT NULL, source TEXT NOT NULL,
-          peak_uvi REAL NOT NULL, peak_at TEXT, protect_start TEXT, protect_end TEXT,
-          alert INTEGER NOT NULL DEFAULT 0, issued_at TEXT, fetched_at TEXT NOT NULL,
-          PRIMARY KEY (location_id, local_date, source)) WITHOUT ROWID;
-        """)
+        self.db.executescript(SCHEMA)
 
     def daily(self, **kw):
         extra = {"alert": "0", "local_date": "2026-10-25"}
