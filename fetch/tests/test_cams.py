@@ -1,10 +1,13 @@
 """Tests for CAMS: UVI conversion (science-critical) and payload/area shape."""
 import unittest
+from datetime import datetime, timezone
 
 from ..cams import (
     AU_STATIONS,
     VARIABLES,
     area_for,
+    check_newest_run,
+    expected_run,
     flatten_series,
     request_payload,
     uvi_from_uvbed,
@@ -106,6 +109,37 @@ class FlattenSeriesTests(unittest.TestCase):
     def test_mismatched_shapes_are_rejected(self):
         with self.assertRaises(ValueError):
             flatten_series([10, 11, 12], 10, [0.1, 0.2])
+
+
+class NewestRunTests(unittest.TestCase):
+    """The 28 October 2026 failure: a fetch that got only yesterday's run, after
+    today's should have existed, reported success and wrote nothing."""
+
+    @staticmethod
+    def utc(text):
+        return datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
+
+    def records(self, *issued):
+        from ..common import Record
+        return [Record("cams", "forecast", "au-syd", 1.0, self.utc("2026-10-28T03:00"), self.utc(i)) for i in issued]
+
+    def test_expected_run_turns_over_at_publication(self):
+        self.assertEqual(expected_run(self.utc("2026-10-28T10:29")), self.utc("2026-10-27T00:00"))
+        self.assertEqual(expected_run(self.utc("2026-10-28T10:30")), self.utc("2026-10-28T00:00"))
+
+    def test_morning_fetch_holding_yesterdays_run_is_fine(self):
+        check_newest_run(self.records("2026-10-27T00:00"), self.utc("2026-10-28T07:40"))
+
+    def test_fetch_after_publication_without_todays_run_fails(self):
+        with self.assertRaisesRegex(RuntimeError, "2026-10-27T00Z, expected 2026-10-28T00Z"):
+            check_newest_run(self.records("2026-10-26T00:00", "2026-10-27T00:00"), self.utc("2026-10-28T11:00"))
+
+    def test_fetch_with_todays_run_passes(self):
+        check_newest_run(self.records("2026-10-27T00:00", "2026-10-28T00:00"), self.utc("2026-10-28T11:00"))
+
+    def test_no_issue_times_fails(self):
+        with self.assertRaises(RuntimeError):
+            check_newest_run([], self.utc("2026-10-28T11:00"))
 
 
 if __name__ == "__main__":

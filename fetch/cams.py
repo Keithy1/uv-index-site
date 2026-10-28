@@ -338,7 +338,7 @@ def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Rec
     because EPA publishes today only -- there is no tomorrow in its feed at
     all -- so /us/tomorrow/ has no other source.
 
-    Roughly 5 MB per area per fetch, twice a day, in GitHub Actions. The Worker
+    Roughly 5 MB per area per fetch, at 10:40 and 13:40 UTC, in GitHub Actions. The Worker
     never touches this: it has 10 ms of CPU and no GRIB reader.
     """
     today = datetime.now(timezone.utc).date()
@@ -365,4 +365,39 @@ def run(stations: dict[str, tuple[float, float, str]] | None = None) -> list[Rec
         raise RuntimeError("; ".join(failures))
     if failures:
         print(f"[cams] partial failure: {'; '.join(failures)}", flush=True)
+    check_newest_run(records, datetime.now(timezone.utc))
     return records
+
+
+# When today's 00Z run can be relied on in the ADS. ECMWF's dissemination
+# schedule delivers it at 10:00 UTC; the ADS lagged that on 27 October 2026
+# (absent at 09:30, present at 12:35). Mirrored in src/lib/dispatch.ts as
+# CAMS_PUBLISHED_UTC_MINUTES -- change both together.
+PUBLISHED_UTC = (10, 30)
+
+
+def expected_run(now: datetime) -> datetime:
+    """The newest 00Z run the ADS should be serving at `now`."""
+    run = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if (now.hour, now.minute) < PUBLISHED_UTC:
+        run -= timedelta(days=1)
+    return run
+
+
+def check_newest_run(records: list[Record], now: datetime) -> None:
+    """Fail when the newest run fetched is older than the one that should exist.
+
+    The ADS answers a request for yesterday/today with yesterday alone when
+    today has not published, and says nothing. From 26 to 28 October 2026 the
+    07:40 UTC fetch ran before the 00Z run existed, fetched only the run we
+    already held, wrote 0 rows and reported success -- so /api/health stayed
+    green while every forecast was a day older than it should have been.
+    Raising keeps last_ok_at where it was, which is what lets health and the
+    Worker's dispatch see that the forecast is old.
+    """
+    issued = [r.issued_at for r in records if r.issued_at is not None]
+    newest = max(issued) if issued else None
+    want = expected_run(now)
+    if newest is None or newest < want:
+        got = newest.strftime("%Y-%m-%dT%HZ") if newest else "none"
+        raise RuntimeError(f"newest run is {got}, expected {want:%Y-%m-%dT%HZ}: not yet in the ADS")

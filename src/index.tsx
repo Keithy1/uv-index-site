@@ -28,7 +28,7 @@ import {
   peakOnLocalDay,
   pointsOnLocalDay,
 } from "./lib/current";
-import { DISPATCH_SOURCE, requestFetch, shouldDispatch } from "./lib/dispatch";
+import { camsStale, DISPATCH_SOURCE, requestFetch, shouldDispatch } from "./lib/dispatch";
 import { isIndexable } from "./lib/host";
 import {
   countrySitemap,
@@ -126,6 +126,13 @@ app.use("*", async (c, next) => {
 });
 
 /**
+ * How long after publication a missing CAMS run may go before health says so:
+ * long enough for the 13:40 UTC retry and the Worker's dispatch (90 min) to
+ * have tried, so the monitor alerts only when the rescue has failed too.
+ */
+const CAMS_HEALTH_GRACE_MS = 4 * 60 * 60 * 1000;
+
+/**
  * How late a source may be before /api/health calls it unhealthy.
  *
  * The keys are also the list of sources that are SUPPOSED to exist. That
@@ -136,7 +143,9 @@ app.use("*", async (c, next) => {
 const HEALTH_LIMITS_MS: Record<string, number> = {
   arpansa: 30 * 60 * 1000,
   epa: 3 * 60 * 60 * 1000,
-  cams: 6 * 60 * 60 * 1000,
+  // CAMS is judged against its publication clock, not by age: see
+  // CAMS_HEALTH_GRACE_MS above. Listed here so it is still an expected source.
+  cams: Number.POSITIVE_INFINITY,
   // city_now, which every listing page reads. Recorded on every cron whether
   // or not a rebuild was needed, so it measures "the summary is current with
   // its inputs", not "a forecast arrived" -- that is epa's and cams's job.
@@ -261,7 +270,10 @@ app.get("/api/health", async (c) => {
         lastError: row?.last_error ?? (row ? null : "has never run"),
         recordsLastRun: row?.records_last_run ?? 0,
         ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
-        healthy: ageMs !== null && ageMs <= limit,
+        healthy:
+          source === "cams"
+            ? !camsStale(row?.last_ok_at ?? null, new Date(now), CAMS_HEALTH_GRACE_MS)
+            : ageMs !== null && ageMs <= limit,
       };
     });
 

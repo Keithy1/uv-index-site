@@ -48,5 +48,5 @@ export const FORECAST_ACCURACY = {
 export const REFRESH = {
   arpansa: "every 5 minutes",
   epa: "every hour",
-  cams: "twice a day",
+  cams: "once a day",
 } as const;

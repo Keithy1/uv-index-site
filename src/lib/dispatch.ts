@@ -25,13 +25,44 @@ const REPO = "Keithy1/uv-index-site";
 const WORKFLOW = "fetch-epa-cams.yml";
 
 /**
- * How stale a source must be before we intervene, comfortably past its own
- * schedule so a merely late run is left alone.
+ * How stale EPA must be before we intervene: past its hourly schedule, so a
+ * merely late run is left alone, but under the 3 h at which /api/health calls
+ * it unhealthy. On 28 October 2026 the two were equal, GitHub skipped three
+ * hourly runs, and the monitor alerted for the ten minutes the rescue run took.
  */
 export const STALE_LIMITS_MS: Record<string, number> = {
-  epa: 3 * 60 * 60 * 1000,
-  cams: 9 * 60 * 60 * 1000,
+  epa: 2 * 60 * 60 * 1000,
 };
+
+/**
+ * When today's CAMS 00Z run can be relied on in the ADS, in minutes after
+ * midnight UTC. Mirrored in fetch/cams.py as PUBLISHED_UTC.
+ */
+export const CAMS_PUBLISHED_UTC_MINUTES = 10 * 60 + 30;
+
+/** Grace after publication before the Worker asks for a CAMS run. */
+export const CAMS_DISPATCH_GRACE_MS = 90 * 60 * 1000;
+
+/**
+ * Whether CAMS is missing a run it should hold by now.
+ *
+ * Judged against the publication clock, not the age of the last fetch. The
+ * fetcher only records success when it got the newest run there should be
+ * (fetch/cams.py, check_newest_run), so a last_ok_at before the latest
+ * publication time, `graceMs` ago, means that run never arrived. Measuring
+ * the age of the last fetch instead is how a 07:40 UTC fetch -- before the
+ * run existed -- kept health green from 26 to 28 October 2026 while every
+ * forecast was a day older than it should have been.
+ */
+export function camsStale(lastOkAt: string | null, now: Date, graceMs: number): boolean {
+  if (!lastOkAt) return true;
+  const cutoff = new Date(now.getTime() - graceMs);
+  const due = Date.UTC(cutoff.getUTCFullYear(), cutoff.getUTCMonth(), cutoff.getUTCDate()) +
+    CAMS_PUBLISHED_UTC_MINUTES * 60 * 1000;
+  // Before today's publication, yesterday's is the one we should hold.
+  const latest = due <= cutoff.getTime() ? due : due - 24 * 60 * 60 * 1000;
+  return Date.parse(lastOkAt) < latest;
+}
 
 /**
  * Minimum gap between requests. Without it a fetch that fails for its own
@@ -67,6 +98,7 @@ export function shouldDispatch(
     // once let /api/health report "healthy" while ARPANSA had never fetched.
     if (!ok || now.getTime() - Date.parse(ok) > limit) stale.push(source);
   }
+  if (camsStale(at("cams"), now, CAMS_DISPATCH_GRACE_MS)) stale.push("cams");
 
   return stale.length > 0
     ? { dispatch: true, reason: `stale: ${stale.join(", ")}` }

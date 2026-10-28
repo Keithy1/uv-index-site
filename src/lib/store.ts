@@ -489,7 +489,7 @@ export async function forecastsStale(
  * How far either side of the build time the stored series reaches.
  *
  * Generous on purpose. The series is rebuilt when a forecast arrives -- hourly
- * while EPA is healthy, twice a day if only CAMS is -- and GitHub's scheduler
+ * while EPA is healthy, once a day if only CAMS is -- and GitHub's scheduler
  * once went sixteen hours without running at all. A day after it was built,
  * the series must still cover all of "today" and "tomorrow" in every city's own
  * zone, or a dropped run empties the tomorrow column again.

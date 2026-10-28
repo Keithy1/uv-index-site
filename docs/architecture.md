@@ -293,11 +293,19 @@ checkout, could see it.
 
 ## Known costs of the current write volume
 
-CAMS writes about 12,200 rows per run twice a day across both countries, and
-EPA about 1,100 every hour. That is roughly 45,000 of D1's free allowance of
-100,000 writes a day. It fits, but EPA is the wasteful part: it rewrites the
-same rows hourly for a forecast that changes far less often. Dropping EPA to
-every three hours would halve the total if headroom is ever needed.
+Since 27 October 2026 every upsert writes only when the value changed, so a
+run that re-fetches data already held costs nothing. Measured live: a new CAMS
+00Z run about 6,600 rows written (once a day; the 13:40 UTC retry ~0), EPA's
+first run of the day about 1,200 and its hourly repeats ~0, and the Worker's
+ARPANSA readings and `city_now` about 12,000. Roughly 20,000 of D1's free
+100,000 writes a day.
+
+Zero writes is therefore normal and tells you nothing about freshness. CAMS
+freshness is checked against the publication clock instead: fetch/cams.py
+fails a fetch that lacks the 00Z run due by 10:30 UTC, and `camsStale` in
+src/lib/dispatch.ts turns that into a dispatch at 12:00 and an unhealthy
+/api/health at 14:30. Before that, the 07:40 UTC fetch ran ahead of
+publication for three days and health stayed green.
 
 ## Reads are the constraint, not writes, and reads are invisible
 

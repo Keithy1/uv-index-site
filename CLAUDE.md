@@ -17,7 +17,7 @@ Read `docs/architecture.md` before changing anything structural.
 ## Commands
 
 ```sh
-npm test              # vitest, 225 tests, no network
+npm test              # vitest, 233 tests, no network
 npm run typecheck     # both tsconfigs
 npm run dev           # wrangler dev on :8787
 npm run db:init:local # apply schema.sql to the local D1

@@ -16,8 +16,13 @@ on:
   schedule:
     # EPA publishes hourly; off the top of the hour, which is less contended.
     - cron: "23 * * * *"
-    # After the 00Z and 12Z CAMS runs have published.
-    - cron: "40 7,19 * * *"
+    # CAMS: after today's 00Z run reaches the ADS (ECMWF delivers it at 10:00
+    # UTC; the ADS has been later), then a retry. Only the 00Z run is fetched.
+    # This was "40 7,19" from 25 to 28 October 2026, meant as "after the 00Z
+    # and 12Z runs": 07:40 is before the 00Z run exists, and 12Z is never
+    # requested, so both runs re-fetched data already held. fetch/cams.py now
+    # fails a fetch that misses the run it should have got.
+    - cron: "40 10,13 * * *"
 
 permissions:
   contents: read
@@ -56,7 +61,7 @@ jobs:
         run: python -m unittest discover -s fetch/tests -t . -v
 
       # CAMS only runs on its own schedule: it is a ~5 MB download and the
-      # forecast changes twice a day, so fetching it hourly would be waste.
+      # run we fetch changes once a day, so fetching it hourly would be waste.
       - name: Decide which sources to fetch
         id: pick
         run: |
