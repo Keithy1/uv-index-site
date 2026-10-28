@@ -47,4 +47,9 @@ dev-seed.sql
 # Generated SQL from the fetchers; applied, never committed.
 sql/
 *.grib
+# cfgrib writes a sibling index beside each download.
+*.grib.*.idx
 .cache/
+
+# Candidate logo artwork, kept locally while one is chosen.
+Logo options/
