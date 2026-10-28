@@ -705,6 +705,27 @@ async function refreshSummaries(env: Env, health: Awaited<ReturnType<typeof read
  * Its own try, so a failed prune is logged as itself rather than recorded as an
  * ARPANSA failure by the handler's catch.
  */
+/**
+ * Ask GitHub Actions for the EPA/CAMS fetch when the timetable or staleness
+ * says so (lib/dispatch.ts). This cron is the clock; GitHub only runs it.
+ */
+async function askForFetches(env: Env): Promise<void> {
+  const token = env.GITHUB_DISPATCH_TOKEN;
+  if (!token) return;
+  try {
+    const now = new Date();
+    const decision = shouldDispatch(await readHealth(env.DB), now);
+    if (!decision.dispatch) return;
+    console.log(`asking Actions to fetch ${decision.source}: ${decision.reason}`);
+    const ok = await requestFetch(token, decision.source);
+    // Clears any previous error on success, so health recovers by itself once
+    // the token is replaced.
+    await noteDispatch(env.DB, DISPATCH_SOURCE, ok, decision.reason, now);
+  } catch (error) {
+    console.error(`dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 async function pruneOncePerDay(env: Env, now: Date): Promise<void> {
   if (now.getUTCHours() !== 0 || now.getUTCMinutes() < 30 || now.getUTCMinutes() >= 35) return;
   try {
@@ -747,24 +768,9 @@ export default {
             console.log(`arpansa: ${written} stored, ${result.notes.length} late: ${result.notes.join("; ")}`);
           }
 
-          // GitHub's scheduler drops runs -- sixteen hours with no CAMS fetch
-          // emptied tomorrow's column for ten of thirteen Australian cities.
-          // This cron is reliable, so it watches the clock on GitHub's behalf.
           const health = await readHealth(env.DB);
           await refreshSummaries(env, health);
           await pruneOncePerDay(env, new Date());
-
-          const token = env.GITHUB_DISPATCH_TOKEN;
-          if (token) {
-            const decision = shouldDispatch(health, new Date());
-            if (decision.dispatch) {
-              console.log(`asking Actions to fetch: ${decision.reason}`);
-              const ok = await requestFetch(token);
-              // Clears any previous error on success, so health recovers by
-              // itself once the token is replaced.
-              await noteDispatch(env.DB, DISPATCH_SOURCE, ok, decision.reason, new Date());
-            }
-          }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           console.error(`arpansa fetch failed: ${message}`);
@@ -773,5 +779,8 @@ export default {
         }
       })(),
     );
+    // Its own task, not part of the ARPANSA one: this is the only clock for
+    // EPA and CAMS, so an ARPANSA outage must not stop them being fetched.
+    ctx.waitUntil(askForFetches(env));
   },
 } satisfies ExportedHandler<Env>;

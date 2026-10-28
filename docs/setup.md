@@ -124,7 +124,16 @@ redirect zero times.
 cached client-side, and with "preload" is genuinely hard to undo. It is the
 right call for a mature site and a bad bet for one that has not launched.
 
-## 3c. GitHub token so the Worker can trigger the fetch — NOT DONE
+## 3c. GitHub token so the Worker can trigger the fetch — DONE
+
+**Since 28 October 2026 this token is the only thing that starts the EPA and
+CAMS fetches.** The workflow has no schedule of its own any more: GitHub
+started 15 of about 72 scheduled hourly runs from 25 to 28 October, while every
+run asked for through the API ran. The Worker's cron now asks on a timetable
+(EPA hourly at :20, CAMS at 10:40 and 13:40 UTC) and again whenever a source is
+stale. When the token expires (September 2027) nothing is fetched; replace it
+before then. `/api/health` reports `dispatch.healthy: false` on the first
+refused request.
 
 GitHub's scheduler dropped the CAMS fetch for sixteen hours on 26 October.
 Because the eastern Australian cities had rolled past midnight, their

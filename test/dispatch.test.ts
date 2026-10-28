@@ -5,6 +5,7 @@ import {
   camsStale,
   DISPATCH_COOLDOWN_MS,
   DISPATCH_SOURCE,
+  scheduledFetch,
   shouldDispatch,
 } from "../src/lib/dispatch";
 
@@ -130,5 +131,56 @@ describe("camsStale", () => {
 
   it("treats a source that has never succeeded as stale", () => {
     expect(camsStale(null, at("2026-10-28T03:00:00Z"), G)).toBe(true);
+  });
+});
+
+describe("scheduledFetch", () => {
+  const at = (iso: string) => scheduledFetch(new Date(iso));
+
+  it("asks for EPA once an hour, in the :20 slot", () => {
+    expect(at("2026-10-28T05:20:00Z")).toBe("epa");
+    expect(at("2026-10-28T05:24:59Z")).toBe("epa");
+    expect(at("2026-10-28T05:15:00Z")).toBeNull();
+    expect(at("2026-10-28T05:25:00Z")).toBeNull();
+  });
+
+  it("asks for CAMS at 10:40 and 13:40 UTC only", () => {
+    expect(at("2026-10-28T10:40:02Z")).toBe("cams");
+    expect(at("2026-10-28T13:40:00Z")).toBe("cams");
+    expect(at("2026-10-28T07:40:00Z")).toBeNull();
+    expect(at("2026-10-28T19:40:00Z")).toBeNull();
+  });
+
+  it("gives each fetch exactly one tick of the five-minute cron a day", () => {
+    const counts: Record<string, number> = {};
+    for (let m = 0; m < 24 * 60; m += 5) {
+      const due = scheduledFetch(new Date(Date.UTC(2026, 9, 28, 0, m)));
+      if (due) counts[due] = (counts[due] ?? 0) + 1;
+    }
+    expect(counts).toEqual({ epa: 24, cams: 2 });
+  });
+});
+
+describe("shouldDispatch and the timetable", () => {
+  it("runs the timetable through the cooldown", () => {
+    // A rescue run at 10:30 must not cost the 10:40 CAMS fetch.
+    const d = shouldDispatch(
+      [{ source: DISPATCH_SOURCE, last_ok_at: "2026-10-28T10:30:00Z" }],
+      new Date("2026-10-28T10:40:00Z"),
+    );
+    expect(d).toEqual({ dispatch: true, reason: "scheduled: cams", source: "cams" });
+  });
+
+  it("asks only for the source that is stale", () => {
+    const now = new Date("2026-10-28T15:00:00Z");
+    const d = shouldDispatch(
+      [
+        { source: "epa", last_ok_at: "2026-10-28T11:00:00Z" },
+        { source: "cams", last_ok_at: "2026-10-28T10:45:00Z" },
+      ],
+      now,
+    );
+    expect(d.source).toBe("epa");
+    expect(shouldDispatch([], now).source).toBe("all");
   });
 });

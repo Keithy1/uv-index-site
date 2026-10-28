@@ -1,5 +1,10 @@
 /**
- * Ask GitHub Actions to run the EPA/CAMS fetch, when GitHub has forgotten to.
+ * Ask GitHub Actions to run the EPA/CAMS fetch: on the clock, and when a
+ * source has gone stale.
+ *
+ * Since 28 October 2026 this is the only clock. The workflow has no schedule
+ * of its own: GitHub started 15 of about 72 hourly runs from 25 to 28 October,
+ * while every run asked for through the API ran. GitHub is the runner only.
  *
  * The division of labour is forced: CAMS needs a GRIB reader and EPA needs a
  * hundred subrequests, so neither can run in a Worker. But GitHub's scheduler
@@ -71,9 +76,31 @@ export function camsStale(lastOkAt: string | null, now: Date, graceMs: number): 
  */
 export const DISPATCH_COOLDOWN_MS = 45 * 60 * 1000;
 
+/** Which fetch to ask for; the workflow's `source` input. */
+export type FetchSource = "epa" | "cams" | "all";
+
 export interface DispatchDecision {
   readonly dispatch: boolean;
   readonly reason: string;
+  readonly source?: FetchSource;
+}
+
+/**
+ * The fetch timetable, as five-minute slots of the Worker's cron (which fires
+ * at :00, :05, ...). Each slot holds exactly one tick, so each fetch is asked
+ * for once.
+ *
+ * EPA publishes hourly: :20, off the top of the hour.
+ * CAMS: 10:40 UTC, after today's 00Z run reaches the ADS (ECMWF delivers it at
+ * 10:00; see CAMS_PUBLISHED_UTC_MINUTES), and 13:40 as a retry. A retry that
+ * finds the run already held writes almost nothing.
+ */
+export function scheduledFetch(now: Date): FetchSource | null {
+  const hour = now.getUTCHours();
+  const slot = Math.floor(now.getUTCMinutes() / 5) * 5;
+  if ((hour === 10 || hour === 13) && slot === 40) return "cams";
+  if (slot === 20) return "epa";
+  return null;
 }
 
 /**
@@ -85,6 +112,11 @@ export function shouldDispatch(
   now: Date,
 ): DispatchDecision {
   const at = (source: string) => health.find((h) => h.source === source)?.last_ok_at ?? null;
+
+  // The timetable is not subject to the cooldown: a rescue run at 10:30 must
+  // not cost the 10:40 CAMS fetch.
+  const due = scheduledFetch(now);
+  if (due) return { dispatch: true, reason: `scheduled: ${due}`, source: due };
 
   const lastAsk = at(DISPATCH_SOURCE);
   if (lastAsk && now.getTime() - Date.parse(lastAsk) < DISPATCH_COOLDOWN_MS) {
@@ -101,7 +133,11 @@ export function shouldDispatch(
   if (camsStale(at("cams"), now, CAMS_DISPATCH_GRACE_MS)) stale.push("cams");
 
   return stale.length > 0
-    ? { dispatch: true, reason: `stale: ${stale.join(", ")}` }
+    ? {
+        dispatch: true,
+        reason: `stale: ${stale.join(", ")}`,
+        source: stale.length === 1 ? (stale[0] as FetchSource) : "all",
+      }
     : { dispatch: false, reason: "all sources current" };
 }
 
@@ -111,7 +147,7 @@ export function shouldDispatch(
  * Failure is reported, never thrown: an unavailable GitHub must not stop the
  * ARPANSA fetch that shares this cron.
  */
-export async function requestFetch(token: string): Promise<boolean> {
+export async function requestFetch(token: string, source: FetchSource = "all"): Promise<boolean> {
   const response = await fetch(
     `https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`,
     {
@@ -123,7 +159,7 @@ export async function requestFetch(token: string): Promise<boolean> {
         "User-Agent": "uvatlas-worker",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ref: "main" }),
+      body: JSON.stringify({ ref: "main", inputs: { source } }),
       signal: AbortSignal.timeout(10_000),
     },
   );

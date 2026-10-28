@@ -12,17 +12,17 @@ name: fetch-epa-cams
 # schema uses: one way into the database, one set of credentials.
 
 on:
+  # No schedule: the Worker's five-minute cron is the clock and asks for each
+  # run through the API (src/lib/dispatch.ts, scheduledFetch). GitHub started
+  # 15 of about 72 scheduled hourly runs from 25 to 28 October 2026; every run
+  # asked for through the API ran.
   workflow_dispatch:
-  schedule:
-    # EPA publishes hourly; off the top of the hour, which is less contended.
-    - cron: "23 * * * *"
-    # CAMS: after today's 00Z run reaches the ADS (ECMWF delivers it at 10:00
-    # UTC; the ADS has been later), then a retry. Only the 00Z run is fetched.
-    # This was "40 7,19" from 25 to 28 October 2026, meant as "after the 00Z
-    # and 12Z runs": 07:40 is before the 00Z run exists, and 12Z is never
-    # requested, so both runs re-fetched data already held. fetch/cams.py now
-    # fails a fetch that misses the run it should have got.
-    - cron: "40 10,13 * * *"
+    inputs:
+      source:
+        description: Which fetch to run
+        type: choice
+        options: [all, epa, cams]
+        default: all
 
 permissions:
   contents: read
@@ -60,23 +60,12 @@ jobs:
       - name: Tests
         run: python -m unittest discover -s fetch/tests -t . -v
 
-      # CAMS only runs on its own schedule: it is a ~5 MB download and the
-      # run we fetch changes once a day, so fetching it hourly would be waste.
-      - name: Decide which sources to fetch
-        id: pick
-        run: |
-          if [ "${{ github.event.schedule }}" = "23 * * * *" ]; then
-            echo "source=epa" >> "$GITHUB_OUTPUT"
-          else
-            echo "source=all" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Fetch
         id: fetch
         # Keep going on a source failure: the SQL that did succeed is still
         # worth applying, and the health row records what went wrong.
         continue-on-error: true
-        run: python -m fetch.main --source "${{ steps.pick.outputs.source }}" --out sql
+        run: python -m fetch.main --source "${{ inputs.source || 'all' }}" --out sql
 
       - name: Write to D1
         if: env.CLOUDFLARE_API_TOKEN != ''
