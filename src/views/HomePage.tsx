@@ -47,7 +47,16 @@ export interface HomeView {
 }
 
 const PAGE_CSS = `
-.intro{font-size:1.05rem}
+.intro{font-size:1.05rem;margin:8px 0}
+details.pick{display:inline-block;position:relative}
+details.pick summary{display:inline;cursor:pointer;font-weight:700;color:var(--link);
+text-decoration:underline;text-underline-offset:2px}
+details.pick summary::-webkit-details-marker{display:none}
+details.pick ul{position:absolute;left:0;top:100%;margin:6px 0 0;padding:6px;list-style:none;
+background:var(--bg);border:1px solid var(--line);border-radius:8px;min-width:12rem;z-index:5;
+font-weight:400}
+details.pick li a{display:block;padding:6px 8px;text-decoration:none;border-radius:6px}
+details.pick li a:hover{background:var(--card)}
 .mapbox{margin:16px 0 8px;border:1px solid var(--line);border-radius:12px;
 background:var(--card);padding:8px}
 .mapbox svg{display:block;width:100%;height:auto}
@@ -231,11 +240,24 @@ export function HomePage(view: HomeView) {
       />
 
       <h1>UV index today and tomorrow</h1>
-      <p class="intro">
-        A live UV index map, city by city. Choose a country on the map to see what
-        the UV is right now, what it reaches tomorrow, and the hours sun protection
-        is needed.
-      </p>
+      {/* A <div>, not a <p>: a <details> may not sit inside a paragraph, and
+          the parser would close the <p> before it. The menu is the header's
+          Country menu inline, so the map is not the only way to pick. */}
+      <div class="intro">
+        A live UV index map, city by city.{" "}
+        <details class="pick">
+          <summary>Choose a country</summary>
+          <ul>
+            {view.headlines.map((h) => (
+              <li key={h.country.code}>
+                <a href={`/${h.country.code}/`}>{h.country.name}</a>
+              </li>
+            ))}
+          </ul>
+        </details>{" "}
+        on the map to see what the UV is right now, what it reaches tomorrow, and
+        the hours sun protection is needed.
+      </div>
 
       {/* Hidden until the script confirms a served country; never a redirect. */}
       <div id="hint">
