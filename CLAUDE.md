@@ -20,6 +20,7 @@ Read `docs/architecture.md` before changing anything structural.
 npm test              # vitest, 238 tests, no network
 npm run typecheck     # both tsconfigs
 npm run dev           # wrangler dev on :8787
+npm run deploy        # deploys pushed origin/main and tags it deploy-YYYY-MM-DD-HHMM
 npm run db:init:local # apply schema.sql to the local D1
 python -m unittest discover -s fetch/tests -t .   # the Python fetchers
 ```
