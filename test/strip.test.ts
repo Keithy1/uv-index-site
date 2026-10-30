@@ -59,15 +59,38 @@ describe("dayStrip: the cells", () => {
     expect(s.cells.find((c) => c.minutes === 10 * 60)!.uvi).toBeNull();
   });
 
-  it("reads a half-hour zone's forecast, which lands at half past, between its two neighbours", () => {
-    // Adelaide is UTC+10:30, so CAMS's whole UTC hours arrive at 8:30, 9:30 local.
+  it("sets a half-hour zone's cells on its forecast instants, at half past", () => {
+    // Adelaide is UTC+10:30, so CAMS's whole UTC hours arrive at 7:30, 8:30 local.
     const points: CurvePoint[] = [
       { minutes: 7 * 60 + 30, uvi: 2 },
       { minutes: 8 * 60 + 30, uvi: 4 },
       { minutes: 9 * 60 + 30, uvi: 6 },
     ];
-    const s = dayStrip({ points, sun: { sunrise: 7 * 60 + 40, sunset: 9 * 60 + 20 }, window: null, nowMinutes: null })!;
-    expect(s.cells.map((c) => c.uvi)).toEqual([3, 5]);
+    const s = dayStrip({ points, sun: { sunrise: 7 * 60 + 10, sunset: 9 * 60 + 50 }, window: null, nowMinutes: 8 * 60 + 5 })!;
+    expect(s.cells.map((c) => c.minutes)).toEqual([450, 510, 570]);
+    expect(s.cells.map((c) => c.uvi)).toEqual([2, 4, 6]);
+    expect(s.from).toBe(7 * 60);
+    expect(s.to).toBe(10 * 60);
+    expect(s.cells.filter((c) => c.now).map((c) => c.minutes)).toEqual([510]);
+  });
+
+  it("names the same peak as the forecast itself, in a half-hour zone too", () => {
+    // Verified 30 October: clock-hour cells blended 6.7 at 2:30 pm into 6.4 at 2 pm.
+    const points = bell().map((p) => ({ minutes: p.minutes + 30, uvi: p.uvi }));
+    const s = dayStrip({ points, sun: SUN, window: null, nowMinutes: null })!;
+    const top = points.reduce((a, b) => (b.uvi > a.uvi ? b : a));
+    expect(s.peak).toEqual({ minutes: top.minutes, uvi: top.uvi });
+  });
+
+  it("keeps its grid when one instant falls off it", () => {
+    const points: CurvePoint[] = [
+      { minutes: 7 * 60, uvi: 2 },
+      { minutes: 8 * 60, uvi: 4 },
+      { minutes: 8 * 60 + 20, uvi: 9 },
+      { minutes: 9 * 60, uvi: 6 },
+    ];
+    const s = dayStrip({ points, sun: { sunrise: 6 * 60 + 40, sunset: 9 * 60 + 20 }, window: null, nowMinutes: null })!;
+    expect(s.cells.map((c) => c.uvi)).toEqual([2, 4, 6]);
   });
 
   it("returns null where there is no sunrise or sunset to bound the day", () => {

@@ -12,8 +12,13 @@
  *     them only when they are adjacent, as the chart draws it; a gap is a gap;
  *   * no peak is named over a day the forecast only partly covers.
  *
- * One cell an hour on every screen. CAMS forecasts hourly, so half-hour cells
- * would print values nobody forecast.
+ * One cell an hour on every screen, and each cell sits on a forecast instant,
+ * so every value printed is one the source issued. CAMS forecasts on whole UTC
+ * hours, which in a half-hour zone (Adelaide, Darwin) fall at half past: there
+ * the cells move with them, spanning 8:00 to 9:00 for the 8:30 value. Cells
+ * placed on the clock hour instead were blends of two forecasts, and the
+ * strip's peak came out lower than the page's own (6.4 at 2 pm beside 6.7 at
+ * 2:30 pm, for Adelaide). Half-hour cells would print values nobody forecast.
  */
 import type { CurvePoint } from "./chart";
 import { minutesToClock } from "./time";
@@ -73,8 +78,8 @@ function valueAt(sorted: readonly CurvePoint[], minutes: number): number | null 
     if (p.minutes < minutes) before = p;
     else if (after === null) after = p;
   }
-  // Only between neighbouring forecast hours, as in a half-hour zone such as
-  // Adelaide, where CAMS's whole UTC hours fall at half past.
+  // Only between neighbouring forecast hours, for a stray instant off the
+  // grid (a run from another source); never across a gap.
   if (before && after && after.minutes - before.minutes <= HOUR) {
     const ratio = (minutes - before.minutes) / (after.minutes - before.minutes);
     return Math.round((before.uvi + ratio * (after.uvi - before.uvi)) * 10) / 10;
@@ -82,19 +87,34 @@ function valueAt(sorted: readonly CurvePoint[], minutes: number): number | null 
   return null;
 }
 
+/**
+ * Where in the hour the forecast's instants fall: 0 on most of the continent,
+ * 30 in a half-hour zone. The commonest minute among the points, so one stray
+ * value cannot shift the grid; 0 when there are none.
+ */
+function phaseOf(points: readonly CurvePoint[]): number {
+  const counts = new Map<number, number>();
+  for (const p of points) counts.set(p.minutes % HOUR, (counts.get(p.minutes % HOUR) ?? 0) + 1);
+  let best = 0, most = 0;
+  for (const [minute, n] of counts) if (n > most) [best, most] = [minute, n];
+  return best;
+}
+
 export function dayStrip(input: StripInput): DayStrip | null {
   if (!input.sun) return null;
   const { sunrise, sunset } = input.sun;
-  // The hours whose cells overlap daylight: a cell spans half an hour either side.
-  const first = Math.floor((sunrise + HALF) / HOUR);
-  const last = Math.ceil((sunset - HALF) / HOUR);
+  const phase = phaseOf(input.points);
+  // The hours whose cells overlap daylight: a cell spans half an hour either
+  // side of its instant, h * 60 + phase.
+  const first = Math.floor((sunrise + HALF - phase) / HOUR);
+  const last = Math.ceil((sunset - HALF - phase) / HOUR);
   if (last < first) return null;
 
   const sorted = [...input.points].sort((a, b) => a.minutes - b.minutes);
   const now = input.nowMinutes;
   const cells: StripCell[] = [];
   for (let h = first; h <= last; h++) {
-    const minutes = h * HOUR;
+    const minutes = h * HOUR + phase;
     const uvi = valueAt(sorted, minutes);
     cells.push({
       minutes,
@@ -104,8 +124,8 @@ export function dayStrip(input: StripInput): DayStrip | null {
     });
   }
 
-  const from = first * HOUR - HALF;
-  const to = last * HOUR + HALF;
+  const from = first * HOUR + phase - HALF;
+  const to = last * HOUR + phase + HALF;
   const frac = (m: number) => Math.min(1, Math.max(0, (m - from) / (to - from)));
   const window = input.window
     ? { ...input.window, left: frac(input.window.start), right: frac(input.window.end) }
