@@ -91,19 +91,21 @@ function row(slug: string, over: Partial<CityRow> = {}): CityRow {
     tomorrow: 8.4,
     tomorrowMinutes: 750,
     alert: false,
+    strip: dayStrip({ points: CURVE, sun: { sunrise: 5 * 60 + 20, sunset: 18 * 60 + 40 }, window: null, nowMinutes: 12 * 60 }),
+    tomorrowStrip: dayStrip({ points: CURVE, sun: { sunrise: 5 * 60 + 20, sunset: 18 * 60 + 40 }, window: null, nowMinutes: null }),
     ...over,
   };
 }
 
-function country(rows: CityRow[]): string {
+function country(rows: CityRow[], us = false): string {
   const v: CountryView = {
-    country: COUNTRIES.find((c) => c.code === "au")!,
+    country: COUNTRIES.find((c) => c.code === (us ? "us" : "au"))!,
     rows,
     now: NOW,
     hasForecast: true,
     map: MAP,
-    measured: true,
-    credit: "arpansa",
+    measured: !us,
+    credit: us ? "epa" : "arpansa",
     cityPages: true,
   };
   return String(CountryPage(v));
@@ -182,9 +184,10 @@ describe("C2: a stale row looks stale", () => {
   });
 
   it("gives its current value no band colour", () => {
-    const now = sydney.match(/<td class="now">.*?<\/td>/s)?.[0] ?? "";
-    expect(now).toContain("7.8");
-    expect(now).not.toContain("background:");
+    const now = sydney.match(/<td class="k-now">.*?<\/td>/s)?.[0] ?? "";
+    expect(now).toContain(">7.8<");
+    expect(now).toContain('class="old"');
+    expect(now).not.toMatch(/class="b\d"/);
   });
 
   it("leaves it out of the headline", () => {
@@ -192,13 +195,94 @@ describe("C2: a stale row looks stale", () => {
   });
 });
 
-describe("F2: the country table fits a 360 px phone", () => {
-  it("shrinks each band pill to a swatch on a narrow screen, keeping its word", () => {
+describe("F2: the country list fits a 360 px phone", () => {
+  it("has no band pill to push the row wide", () => {
     const h = country([row("perth")]);
-    expect(h).toMatch(/@media \(max-width:420px\)\{\.uvi \.band\{font-size:0;width:12px/);
-    // Not display:none: the band's name must still reach a screen reader.
-    expect(h).not.toMatch(/\.uvi \.band\{display:none/);
+    expect(h).not.toMatch(/class="band"/);
+    expect(h).not.toContain("tablewrap");
   });
+});
+
+describe("G4: a swatch and the number, not a pill in every cell", () => {
+  const h = country([row("perth"), row("sydney", { uvi: 2.4, peak: 11.2 })]);
+  const body = h.match(/<tbody>.*<\/tbody>/s)?.[0] ?? "";
+
+  it("prints no band word in the rows", () => {
+    expect(copy(body)).not.toMatch(/Low|Moderate|High|Extreme/);
+  });
+
+  it("gives each value its band as a swatch class, from the rounded value", () => {
+    expect(body).toContain('<b class="b0">2.4</b>');
+    expect(body).toContain('<b class="b4">11.2</b>');
+    expect(h).toMatch(/\.list \.b4\{--sw:var\(--band-4\)\}/);
+  });
+
+  it("keeps the band word where it changes the advice", () => {
+    expect(copy(h)).toMatch(/Highest now: Perth , 7\.8 Very High\./);
+  });
+});
+
+describe("Session 3: the country page as small multiples", () => {
+  const many = locationsIn("au").slice(0, 12).map((l) => row(l.slug));
+  const h = country(many);
+
+  it("draws today's and tomorrow's strip in every row, one <i> a cell", () => {
+    const rows = h.match(/<tbody>.*<\/tbody>/s)![0].split("<tr").filter((r) => r.includes("s-today"));
+    expect(rows).toHaveLength(12);
+    for (const r of rows) {
+      expect(r).toContain('class="ms s-tomorrow"');
+      expect(r).not.toMatch(/style="--h:/);
+    }
+  });
+
+  it("marks the current hour in today's strip only", () => {
+    const today = h.match(/class="ms s-today"[^>]*>.*?<\/div>/s)![0];
+    const tomorrow = h.match(/class="ms s-tomorrow"[^>]*>.*?<\/div>/s)![0];
+    expect(today).toMatch(/class="[^"]*\bn\b/);
+    expect(tomorrow).not.toMatch(/class="[^"]*\bn\b/);
+  });
+
+  it("puts the list before the map (C3)", () => {
+    expect(h.indexOf("<tbody>")).toBeGreaterThan(0);
+    expect(h.indexOf("<tbody>")).toBeLessThan(h.indexOf('class="mapbox"'));
+  });
+
+  it("reserves one empty ad slot after row 10, hidden from screen readers", () => {
+    const body = h.match(/<tbody>.*<\/tbody>/s)![0];
+    const trs = body.match(/<tr[^>]*>/g)!;
+    expect(trs[10]).toBe('<tr class="ad" aria-hidden="true">');
+    expect(trs.filter((t) => t.includes('class="ad"'))).toHaveLength(1);
+    expect(h).toMatch(/\.list tr\.ad td\{height:100px/);
+  });
+
+  it("has no ad slot on a page of ten cities or fewer", () => {
+    expect(country(many.slice(0, 10))).not.toContain('class="ad"');
+  });
+
+  it("credits ARPANSA for the value now and CAMS for the strip, in the list itself", () => {
+    const list = h.match(/<div class="list">.*?<\/table>/s)![0];
+    expect(copy(list)).toContain("Measured by ARPANSA");
+    expect(copy(list)).toContain("Today hour by hour, forecast by CAMS");
+  });
+
+  it("says forecast, never measured, for the United States", () => {
+    const us = country([row("perth", { location: MIAMI })], true);
+    const list = copy(us.match(/<div class="list">.*?<\/table>/s)![0]);
+    expect(list).toContain("Now, forecast");
+    expect(list).toContain("forecast by the US EPA and CAMS");
+    expect(list).not.toMatch(/measured/i);
+  });
+
+  it("keeps every figure for a screen reader, whichever view is on screen", () => {
+    // Collapsed off screen, never display:none, which would take them out.
+    expect(h).not.toMatch(/\.k-(now|peak|tomorrow)[^{]*\{display:none/);
+    expect(h).toMatch(/#day-now:checked~\.list \.k-peak>\*/);
+  });
+
+  it("never animates a strip", () => {
+    expect(h).not.toMatch(/\.ms[^{]*\{[^}]*(animation|transition)/);
+  });
+
 });
 
 describe("F4: the selected day reads in dark mode", () => {

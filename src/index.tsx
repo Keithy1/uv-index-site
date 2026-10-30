@@ -454,9 +454,8 @@ app.get("/:country/", async (c) => {
     const today = localDateKey(now.toISOString(), location.tz);
     const peaks = pointsOnLocalDay(row?.forecast ?? [], location.tz, today);
     const todayPeak = peakOnLocalDay(peaks);
-    const tomorrowPeak = peakOnLocalDay(
-      pointsOnLocalDay(row?.forecast ?? [], location.tz, nextLocalDay(today)),
-    );
+    const tomorrowPoints = pointsOnLocalDay(row?.forecast ?? [], location.tz, nextLocalDay(today));
+    const tomorrowPeak = peakOnLocalDay(tomorrowPoints);
 
     // Measured where an instrument exists, the nearest hourly forecast where
     // one does not -- the same shared definition the home page uses.
@@ -475,6 +474,21 @@ app.get("/:country/", async (c) => {
       tomorrow: tomorrowPeak?.uvi ?? null,
       tomorrowMinutes: tomorrowPeak?.minutes ?? null,
       alert: (row?.alerts ?? []).includes(today),
+      // Each row's strips, from the forecast already parsed above: no further
+      // read. No bracket, because the clear-sky series is not in city_now.
+      strip: dayStrip({
+        points: peaks,
+        sun: sunTimes(location.lat, location.lon, today, location.tz),
+        window: null,
+        nowMinutes: localMinutes(now.toISOString(), location.tz),
+      }),
+      tomorrowStrip: dayStrip({
+        points: tomorrowPoints,
+        sun: sunTimes(location.lat, location.lon, nextLocalDay(today), location.tz),
+        window: null,
+        nowMinutes: null,
+        label: "Tomorrow",
+      }),
     };
   });
 

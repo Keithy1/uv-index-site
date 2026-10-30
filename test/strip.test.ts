@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CurvePoint } from "../src/lib/chart";
-import { dayStrip } from "../src/lib/strip";
+import { cellLevel, dayStrip, placeOnAxis, stripAxis } from "../src/lib/strip";
 
 // Sunrise 5:50 am, sunset 7:25 pm: cells centred on 6 am ... 7 pm, fourteen of them.
 const SUN = { sunrise: 5 * 60 + 50, sunset: 19 * 60 + 25 };
@@ -158,5 +158,53 @@ describe("dayStrip: the words", () => {
   it("says when the protection window is unknown", () => {
     const s = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: null })!;
     expect(s.summary).not.toMatch(/cover up/i);
+  });
+});
+
+describe("stripAxis and placeOnAxis: one clock for every row on a country page", () => {
+  // Sydney-like: cells on the hour, 6 am to 7 pm, so the strip runs 5:30 am to 7:30 pm.
+  const onTheHour = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: null })!;
+  // Adelaide-like: CAMS's whole UTC hours fall at half past, so cells sit on 6:30 ... 7:30.
+  const halfPast = dayStrip({
+    points: bell().map((p) => ({ ...p, minutes: p.minutes + 30 })),
+    sun: { sunrise: 6 * 60 + 10, sunset: 19 * 60 + 50 },
+    window: null,
+    nowMinutes: null,
+  })!;
+
+  it("runs from the whole hour before the earliest strip to the whole hour after the latest", () => {
+    expect(onTheHour.from).toBe(5 * 60 + 30);
+    expect(halfPast.from).toBe(6 * 60);
+    expect(stripAxis([onTheHour, halfPast])).toEqual({ from: 5 * 60, to: 20 * 60 });
+  });
+
+  it("ignores a city with no strip, and has no axis when none has one", () => {
+    expect(stripAxis([null, onTheHour])).toEqual({ from: 5 * 60, to: 20 * 60 });
+    expect(stripAxis([null, null])).toBeNull();
+  });
+
+  it("places each strip by its own local clock, in half-hours", () => {
+    const axis = stripAxis([onTheHour, halfPast])!;
+    // 30 half-hours across; a cell is two of them wide.
+    expect(placeOnAxis(onTheHour, axis)).toEqual({ offset: 1, span: 30 });
+    expect(placeOnAxis(halfPast, axis)).toEqual({ offset: 2, span: 30 });
+  });
+});
+
+describe("cellLevel: what a compact cell draws", () => {
+  const cell = (uvi: number | null) => ({ minutes: 720, uvi, band: null, now: false });
+
+  it("is the whole number the band comes from", () => {
+    expect(cellLevel(cell(2.4))).toBe(2);
+    expect(cellLevel(cell(2.5))).toBe(3);
+  });
+
+  it("keeps a real zero, and a missing hour is null", () => {
+    expect(cellLevel(cell(0))).toBe(0);
+    expect(cellLevel(cell(null))).toBeNull();
+  });
+
+  it("stops at 12, the top of the drawn scale", () => {
+    expect(cellLevel(cell(14.2))).toBe(12);
   });
 });
