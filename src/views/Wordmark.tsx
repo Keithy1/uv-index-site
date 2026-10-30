@@ -21,11 +21,8 @@ const VEE = "M0 0 H4.6 L8 12.1 L11.4 0 H16 L10.4 20 H5.6 Z";
 
 export const WORDMARK_CSS = `
 .wordmark{display:block;height:22px;width:auto}
-:root{--wm-uv-a:#d99a0b;--wm-uv-b:#9a6500;--wm-at-a:#4a5260;--wm-at-b:#16181d}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
---wm-uv-a:#ffd36b;--wm-uv-b:#e09a00;--wm-at-a:#ffffff;--wm-at-b:#9aa4b2}}
-:root[data-theme="dark"]{--wm-uv-a:#ffd36b;--wm-uv-b:#e09a00;--wm-at-a:#ffffff;--wm-at-b:#9aa4b2}
 `;
+// Its colours (--wm-*) are in tokens.ts with every other colour.
 
 export function Wordmark() {
   const stroke = { fill: "none", "stroke-width": "4.2", "stroke-linecap": "butt" } as const;

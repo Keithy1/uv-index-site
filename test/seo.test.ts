@@ -36,6 +36,9 @@ function view(location: typeof AU, measured: boolean): CityView {
     advice: { uvi: 7.4, scope: "now" },
     normals: null,
     month: 10,
+    strip: null,
+    tomorrowStrip: null,
+    stripCredit: "Forecast by CAMS",
   };
 }
 

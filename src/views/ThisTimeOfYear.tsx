@@ -21,8 +21,8 @@ export const NORMALS_CSS = `
    to 330 px, and it no longer balloons on a desktop. The
    bars do not grow in: they are figures, and figures never animate. */
 .months{display:block;width:100%;max-width:420px;height:auto;margin:10px 0 2px}
-.months text{font:17px system-ui,sans-serif;fill:var(--muted)}
-.months .now text{fill:var(--fg);font-weight:700}
+.months text{font-size:17px;fill:var(--haze)}
+.months .now text{fill:var(--shade);font-weight:700}
 `;
 
 /** Twelve bars of the median daily peak, this month outlined. Server-drawn. */
@@ -45,8 +45,8 @@ function MonthStrip({ normals, month }: { normals: CityNormals; month: number })
         return (
           <g key={i} class={i + 1 === month ? "now" : undefined}>
             <rect x={x} y={base - h} width={bar} height={h} rx="3"
-              fill={band ? band.bg : "var(--line)"}
-              stroke={i + 1 === month ? "var(--fg)" : "none"} stroke-width="2">
+              fill={band ? band.bg : "var(--horizon)"}
+              stroke={i + 1 === month ? "var(--shade)" : "none"} stroke-width="2">
               <title>{`${MONTH_NAMES[i]}: ${m ? `typical peak ${formatUvi(m.median)}` : "no data"}`}</title>
             </rect>
             <text x={x + bar / 2} y={base + 19} text-anchor="middle">{MONTH_NAMES[i]![0]}</text>

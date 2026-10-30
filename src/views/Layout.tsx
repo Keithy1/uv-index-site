@@ -13,6 +13,8 @@ import type { Child } from "hono/jsx";
 import { COUNTRIES, liveCountries } from "../lib/locations";
 import type { CountryCode } from "../lib/locations";
 import { LOGO_PATH, MARK_PATH, OG_IMAGE_PATH } from "../assets/brand";
+import { FONT_PATH } from "../assets/font";
+import { TOKENS_CSS } from "./tokens";
 import { Wordmark, WORDMARK_CSS } from "./Wordmark";
 import { ORIGIN, SITE } from "../lib/urls";
 
@@ -30,17 +32,39 @@ interface Props {
   readonly children?: Child;
 }
 
+/**
+ * The typeface, and a stand-in measured to it.
+ *
+ * Atkinson Hyperlegible Next was drawn for low-vision readers by the Braille
+ * Institute: every figure and letter is built not to be mistaken for another,
+ * which is the job on a page read in glare. One variable file, 34 KB, carries
+ * the 400, 700 and 800 the site uses (see tools/font.py).
+ *
+ * font-display:swap shows the text at once in a system face, then swaps. The
+ * stand-ins are system faces resized to this one's average width and line
+ * metrics, so the swap moves nothing: measured on the site's own words, Segoe
+ * UI runs 0.6% narrower, Roboto 0.9%, Arial 2.3%. A local() face that is not
+ * installed is skipped, so each platform lands on the one it has; macOS has
+ * Arial, and San Francisco cannot be named in local().
+ */
+const FONT_CSS = `
+@font-face{font-family:"Atkinson Hyperlegible Next";src:url(${FONT_PATH}) format("woff2");
+font-weight:200 800;font-style:normal;font-display:swap}
+@font-face{font-family:"AHN Segoe";src:local("Segoe UI");size-adjust:99.45%;
+ascent-override:98.94%;descent-override:31.77%;line-gap-override:0%}
+@font-face{font-family:"AHN Roboto";src:local("Roboto");size-adjust:99.15%;
+ascent-override:99.25%;descent-override:31.87%;line-gap-override:0%}
+@font-face{font-family:"AHN Arial";src:local("Arial"),local("Helvetica");size-adjust:97.66%;
+ascent-override:100.76%;descent-override:32.36%;line-gap-override:0%}
+`;
+
 const CSS = `
-:root{color-scheme:light dark;--bg:#fff;--fg:#16181d;--muted:#5b6370;--line:#dfe3e9;
---card:#f6f7f9;--link:#0b57d0;--focus:#0b57d0}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171b;--fg:#e9ecf1;
---muted:#9aa4b2;--line:#2c313a;--card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8}}
-:root[data-theme="dark"]{--bg:#15171b;--fg:#e9ecf1;--muted:#9aa4b2;--line:#2c313a;
---card:#1d2026;--link:#8ab4f8;--focus:#8ab4f8}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);
-font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
--webkit-text-size-adjust:100%}
+body{margin:0;background:var(--sky);color:var(--shade);
+font:var(--t-1)/1.55 "Atkinson Hyperlegible Next","AHN Segoe","AHN Roboto","AHN Arial",
+system-ui,sans-serif;-webkit-text-size-adjust:100%}
+/* Figures that line up, wherever numbers sit in columns or beside each other. */
+table,.n,.strip{font-variant-numeric:tabular-nums}
 /* One column, 64rem, and on the data pages text runs the full width of the
    boxes. It has been three widths: 44rem left two-thirds of a 1920 px screen
    as margin and could not carry the standard 728 px in-page ad (ads go in the
@@ -52,32 +76,32 @@ font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 /* Left-aligned everywhere, with no hyphenation. Text was justified from
    tablet width up; at the 64rem column that made 105-character lines with
    rivers in them. Prose pages hold their own 66-character column instead. */
-a{color:var(--link)}
-a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-header.site{border-bottom:1px solid var(--line)}
+a{color:var(--zenith)}
+a:focus-visible,summary:focus-visible{outline:3px solid var(--zenith);outline-offset:2px}
+header.site{border-bottom:1px solid var(--horizon)}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;
 gap:12px;padding-top:12px;padding-bottom:12px}
-header.site a.brand{font-weight:700;text-decoration:none;color:var(--fg);letter-spacing:-.01em;
+header.site a.brand{font-weight:700;text-decoration:none;color:var(--shade);letter-spacing:-.01em;
 display:inline-flex;align-items:center;gap:8px}
 header.site a.brand img{display:block}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 details.country{position:relative}
 details.country summary{cursor:pointer;list-style:none;padding:6px 10px;
-border:1px solid var(--line);border-radius:8px;font-size:.9rem}
+border:1px solid var(--horizon);border-radius:8px;font-size:var(--t-0)}
 details.country summary::-webkit-details-marker{display:none}
 details.country ul{position:absolute;right:0;margin:6px 0 0;padding:6px;list-style:none;
-background:var(--bg);border:1px solid var(--line);border-radius:8px;min-width:12rem;z-index:5}
+background:var(--sky);border:1px solid var(--horizon);border-radius:8px;min-width:12rem;z-index:5}
 details.country li a{display:block;padding:6px 8px;text-decoration:none;border-radius:6px}
-h1{font-size:1.7rem;line-height:1.2;margin:24px 0 4px;letter-spacing:-.02em}
-h2{font-size:1.15rem;margin:32px 0 8px}
+h1{font-size:var(--t-3);line-height:1.2;margin:var(--s-5) 0 var(--s-1);letter-spacing:-.01em}
+@media (min-width:620px){h1{font-size:var(--t-4)}}
+h2{font-size:var(--t-2);line-height:1.25;margin:var(--s-6) 0 var(--s-2)}
 p{margin:8px 0}
-.muted{color:var(--muted)}
-.small{font-size:.875rem}
-footer.site{margin-top:48px;border-top:1px solid var(--line);padding:16px 0 40px;
-font-size:.85rem;color:var(--muted)}
-footer.site a{color:var(--muted)}
+.muted{color:var(--haze)}
+.small{font-size:var(--t-0)}
+footer.site{margin-top:48px;border-top:1px solid var(--horizon);padding:16px 0 40px;
+font-size:var(--t-0);color:var(--haze)}
+footer.site a{color:var(--haze)}
 footer.site nav{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
-@media (max-width:420px){h1{font-size:1.45rem}}
 /* Motion, in CSS only and only for those who have not asked for less. The site
    ships no JavaScript for it: GSAP would have cost about 23 KB, against a
    budget held for the ad script to come, for effects the browser does itself.
@@ -90,8 +114,6 @@ footer.site nav{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
 @view-transition{navigation:auto}
 header.site{view-transition-name:site-header}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.18s}
-.lift{transition:transform .15s ease-out,box-shadow .15s ease-out}
-.lift:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgb(0 0 0/.08)}
 }
 `;
 
@@ -125,7 +147,10 @@ export function Layout(props: Props) {
           content="uvatlas: a globe with the sun breaking over its edge, and the words Live UV index, city by city, for Australia and the United States"
         />
         <meta name="twitter:card" content="summary_large_image" />
-        <style dangerouslySetInnerHTML={{ __html: CSS + WORDMARK_CSS }} />
+        {/* Fetched with the page rather than after the CSS is parsed, so the
+            swap happens before most readers see the fallback. */}
+        <link rel="preload" href={FONT_PATH} as="font" type="font/woff2" crossorigin="anonymous" />
+        <style dangerouslySetInnerHTML={{ __html: TOKENS_CSS + FONT_CSS + CSS + WORDMARK_CSS }} />
         {/* The publisher, on every page. The design asked for WebSite,
             Organization and BreadcrumbList. `logo` arrived with the artwork:
             Google wants a square-ish logo, and until there was one, claiming

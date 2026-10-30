@@ -64,16 +64,17 @@ export interface CountryView {
 }
 
 const PAGE_CSS = `
-.lead{background:var(--card);border:1px solid var(--line);border-radius:12px;
+.lead{background:var(--cloud);border:1px solid var(--horizon);border-radius:12px;
 padding:16px;margin:16px 0}
 .lead .n{font-size:2.8rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
 letter-spacing:-.03em}
 .lead .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
-.alert{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:.72rem;
-font-weight:700;letter-spacing:.02em;background:#d32010;color:#fff;vertical-align:middle}
-.mapbox{border:1px solid var(--line);border-radius:12px;background:var(--card);
-padding:8px;margin:8px 0}
+.band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:var(--t-1)}
+/* Ink, not red: the EPA's alert is not a WHO band, and the band colours are
+   the only saturated colour on the page. */
+.alert{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:var(--t-0);
+font-weight:700;background:var(--shade);color:var(--sky);vertical-align:middle}
+.mapbox{margin:var(--s-2) 0}
 /* Capped, because width alone sets the height: at the 64rem page width
    Australia's near-square outline drew 974 x 899 px, taller than a laptop
    screen, and pushed the city table out of sight. Past the cap the map
@@ -91,35 +92,35 @@ padding:8px;margin:8px 0}
    how "Today" ended up labelling a map that showed the current hour. */
 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
 clip:rect(0 0 0 0);white-space:nowrap;border:0}
-.dayswitch{display:inline-flex;border:1px solid var(--line);border-radius:999px;
+.dayswitch{display:inline-flex;border:1px solid var(--horizon);border-radius:999px;
 overflow:hidden;margin:4px 0 0;flex-wrap:wrap}
-.dayswitch label{padding:6px 14px;cursor:pointer;font-size:.88rem;font-weight:600;
-color:var(--muted);user-select:none;white-space:nowrap}
-.dayswitch label:hover{color:var(--fg)}
+.dayswitch label{padding:6px 14px;cursor:pointer;font-size:var(--t-0);font-weight:600;
+color:var(--haze);user-select:none;white-space:nowrap}
+.dayswitch label:hover{color:var(--shade)}
 /* Default view: the current level. */
 .m-peak,.m-tomorrow{display:none}
-.daycap{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+.daycap{font-size:var(--t-0);color:var(--haze);margin:6px 0 0}
 
 /* City name on hover. The label never takes pointer events, or it would cover
    neighbouring markers and make them unhoverable -- a real problem where the
    cities are close together. */
 details.citypick{margin:4px 0 12px}
 details.citypick summary{display:inline-block;cursor:pointer;list-style:none;padding:7px 14px;
-border:1px solid var(--line);border-radius:8px;background:var(--card);font-weight:600}
+border:1px solid var(--horizon);border-radius:8px;background:var(--cloud);font-weight:600}
 details.citypick summary::-webkit-details-marker{display:none}
-details.citypick summary::after{content:" ▾";color:var(--muted)}
+details.citypick summary::after{content:" ▾";color:var(--haze)}
 details.citypick[open] summary::after{content:" ▴"}
-details.citypick ul{list-style:none;margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);
+details.citypick ul{list-style:none;margin:8px 0 0;padding:10px 12px;border:1px solid var(--horizon);
 border-radius:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:2px 12px}
 details.citypick li a{display:block;padding:4px 2px;text-decoration:none}
 details.citypick li a:hover{text-decoration:underline}
 .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
-.pin circle{cursor:default;stroke:var(--bg);stroke-width:1.5}
+.pin circle{cursor:default;stroke:var(--sky);stroke-width:1.5}
 .mapbox a .pin circle,.mapbox a .pin text{cursor:pointer}
-.mapbox a:hover .pin circle{stroke:var(--fg)}
+.mapbox a:hover .pin circle{stroke:var(--shade)}
 .pin text{font-size:7.5px;font-weight:700;text-anchor:middle}
-.tip rect{fill:var(--fg);stroke:var(--bg);stroke-width:.8}
-.tip text{font-size:8.5px;font-weight:600;fill:var(--bg);text-anchor:middle}
+.tip rect{fill:var(--shade);stroke:var(--sky);stroke-width:.8}
+.tip text{font-size:8.5px;font-weight:600;fill:var(--sky);text-anchor:middle}
 @media (prefers-reduced-motion:reduce){.tip{transition:none}}
 /* Switching Now / Peak today / Tomorrow fades the new markers in rather than
    swapping them. No script: a CSS animation restarts whenever an element goes
@@ -128,25 +129,25 @@ details.citypick li a:hover{text-decoration:underline}
 .mapbox svg>g[class^="m-"]{animation:uv-pins .28s ease-out}
 @keyframes uv-pins{from{opacity:0;transform:translateY(2px)}}
 tbody tr{transition:background-color .12s}
-tbody tr:hover{background:var(--card)}
+tbody tr:hover{background:var(--cloud)}
 }
 table{border-collapse:collapse;width:100%;margin:8px 0}
-th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--horizon)}
 /* Column headings only. The city cells are row headers (th scope="row") for
    screen readers, and must not inherit the small uppercase treatment. */
-thead th{font-size:.875rem;color:var(--muted);font-weight:600}
+thead th{font-size:var(--t-0);color:var(--haze);font-weight:600}
 tbody th{font-weight:400}
 .uvi{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .uvi b{font-variant-numeric:tabular-nums;font-size:1.02rem;min-width:2.1em;
 display:inline-block;text-align:right}
-td.t{color:var(--muted);font-size:.85rem;white-space:nowrap}
+td.t{color:var(--haze);font-size:var(--t-0);white-space:nowrap}
 /* Past the staleness rule: grey, with no band colour, and its age said. A
    faded row that kept its band pill still read as a current level. */
-.uvi.old b{color:var(--muted)}
-.uvi.old .ago{color:var(--muted);font-size:.85rem}
+.uvi.old b{color:var(--haze)}
+.uvi.old .ago{color:var(--haze);font-size:var(--t-0)}
 .tablewrap{overflow-x:auto}
-.credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
-font-size:.82rem;color:var(--muted)}
+.credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--horizon);
+font-size:var(--t-0);color:var(--haze)}
 .credits p{margin:4px 0}
 @media (max-width:460px){th.hide,td.hide{display:none}}
 /* On a phone the pill shrinks to a swatch. Its longest word, "Very High",
@@ -226,11 +227,11 @@ function switchRules(views: readonly ViewId[]): string {
   for (const view of views) {
     css +=
       `#day-${view}:checked~.dayswitch label[for="day-${view}"]` +
-      `{background:var(--link);color:var(--bg)}`;
+      `{background:var(--zenith);color:var(--sky)}`;
     // Focus must show on the label, since the radio itself is off-screen.
     css +=
       `#day-${view}:focus-visible~.dayswitch label[for="day-${view}"]` +
-      `{outline:3px solid var(--focus);outline-offset:-3px}`;
+      `{outline:3px solid var(--zenith);outline-offset:-3px}`;
     for (const layer of views) {
       const show = layer === view ? "inline" : "none";
       css +=
@@ -317,8 +318,8 @@ function MarkerLayer({
         const grey = old?.(r) ?? false;
         const pin = (
           <g key={r.location.id} class={`pin p-${r.location.id}`}>
-            <circle cx={x} cy={y} r="6" fill={grey ? "var(--line)" : band.bg} />
-            <text x={x} y={r1(y + 3.2)} fill={grey ? "var(--muted)" : band.fg}>{Math.round(uvi)}</text>
+            <circle cx={x} cy={y} r="6" fill={grey ? "var(--horizon)" : band.bg} />
+            <text x={x} y={r1(y + 3.2)} fill={grey ? "var(--haze)" : band.fg}>{Math.round(uvi)}</text>
           </g>
         );
         return linked ? (
@@ -456,7 +457,7 @@ function CountryOutline({
           role="img"
           aria-label={`Map of ${countryName} with a marker for each city. The same figures are listed in the table below.`}
         >
-          <path d={map.outlinePath} fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"
+          <path d={map.outlinePath} fill="var(--horizon)" stroke="var(--haze)" stroke-width="0.8"
             stroke-linejoin="round" opacity="0.75" />
           {/* Markers first, labels second, within each view: SVG paints in
               document order and has no working z-index, so a label nested

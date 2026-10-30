@@ -58,6 +58,26 @@ no template can show a reading without its attribution.
 - 1:110m country outlines, public domain, no credit required.
 - "Made with Natural Earth" on the methods page anyway.
 
+## Typeface
+
+### Atkinson Hyperlegible Next — every page
+- Braille Institute, via Google Fonts. Read 30 October 2026 at
+  https://github.com/googlefonts/atkinson-hyperlegible-next/blob/main/OFL.txt
+  and https://fonts.google.com/specimen/Atkinson+Hyperlegible+Next.
+- SIL Open Font License 1.1. "Copyright 2020-2024 The Atkinson Hyperlegible Next
+  Project Authors". The OFL grants permission "to use, study, copy, merge, embed,
+  modify, redistribute, and sell modified and unmodified copies", provided the
+  font is not sold on its own and the licence travels with it. Commercial use,
+  ads included, is fine; the OFL says its terms do not apply to "any document
+  created using the Font Software".
+- No Reserved Font Name is declared, so the Latin subset may keep the name.
+- **What we ship:** Google Fonts' Latin subset of the variable font (v7, 34 KB,
+  weights 200-800), compiled into the Worker by `tools/font.py` and served from
+  `/atkinson-hyperlegible-next-v7.woff2`. The subset's name table carries no
+  licence text, so the licence is served beside it at
+  `/atkinson-hyperlegible-next-OFL.txt` and kept in `tools/`.
+- **Credit:** none required on the page.
+
 ## Ruled out
 
 | Source | Why not |
