@@ -19,7 +19,7 @@ export function Unavailable() {
     <Prose
       title="UV readings are temporarily unavailable"
       heading="Readings are temporarily unavailable"
-      description="The live UV readings could not be loaded. The guide and the methods page are unaffected."
+      description="The UV readings could not be loaded. The guide and the methods page are unaffected."
       path="/"
     >
       <p>
@@ -35,11 +35,11 @@ export function Unavailable() {
       <h2>Still available</h2>
       <ul>
         <li>
-          <a href="/uv-index-explained/">What the UV index numbers mean</a> — the
+          <a href="/uv-index-explained/">What the UV index numbers mean</a>: the
           bands, what changes them, and what to do at each level.
         </li>
         <li>
-          <a href="/methods/">Methods</a> — where the data comes from and how
+          <a href="/methods/">Methods</a>: where the data comes from and how
           often each source is refreshed.
         </li>
       </ul>

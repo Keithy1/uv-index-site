@@ -49,12 +49,9 @@ font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
    whole page back into the middle. The text-only pages keep a reading column
    of their own -- see Prose.tsx. */
 .wrap{max-width:64rem;margin:0 auto;padding:0 16px}
-/* Justified to the column's edges from tablet width up, with hyphenation to
-   keep the gaps between words small (it uses the page's lang, which is set).
-   Left-aligned on phones: at about 343 px even hyphenated justification left
-   wide gaps on lines with long words -- "The World Health Organization groups
-   the" in the guide -- so a phone gets a ragged right edge instead. */
-@media (min-width:768px){main p,main li{text-align:justify;hyphens:auto;-webkit-hyphens:auto}}
+/* Left-aligned everywhere, with no hyphenation. Text was justified from
+   tablet width up; at the 64rem column that made 105-character lines with
+   rivers in them. Prose pages hold their own 66-character column instead. */
 a{color:var(--link)}
 a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 header.site{border-bottom:1px solid var(--line)}
@@ -169,7 +166,7 @@ export function Layout(props: Props) {
             </a>
             {/* <details> so the menu works with JavaScript switched off. */}
             <details class="country">
-              <summary>Country</summary>
+              <summary>Choose a country</summary>
               <ul>
                 {served.map((c) => (
                   <li key={c.code}>
@@ -181,7 +178,7 @@ export function Layout(props: Props) {
                 ))}
                 {COUNTRIES.filter((c) => c.status === "coming").map((c) => (
                   <li key={c.code} class="muted small" style="padding:6px 8px">
-                    {c.name} — coming later
+                    {c.name} (coming later)
                   </li>
                 ))}
               </ul>

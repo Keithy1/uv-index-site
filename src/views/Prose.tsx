@@ -10,19 +10,19 @@ import type { Child } from "hono/jsx";
 import { Layout, ORIGIN } from "./Layout";
 
 const PROSE_CSS = `
-/* A reading column of its own. These pages are text, with no charts to match,
-   and at the site's 64rem a paragraph runs to about 130 characters a line. */
-.prose{max-width:48rem}
+/* A reading column of its own: 17 px and 66 characters a line. These pages
+   are text, with no charts to match, and at the site's 64rem a paragraph ran
+   to about 130 characters; at 48rem and 16 px, still about 105. */
+.prose{max-width:66ch;font-size:17px}
 .prose h2{margin:30px 0 8px;font-size:1.2rem}
 .prose h3{margin:22px 0 6px;font-size:1.02rem}
-.prose p,.prose li{font-size:1.02rem;line-height:1.65}
+.prose p,.prose li{line-height:1.6}
 .prose ul,.prose ol{padding-left:22px}
 .prose li{margin:6px 0}
 .prose table{border-collapse:collapse;width:100%;margin:12px 0}
 .prose th,.prose td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);
 font-size:.95rem}
-.prose thead th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;
-color:var(--muted)}
+.prose thead th{font-size:.875rem;color:var(--muted)}
 .prose .updated{color:var(--muted);font-size:.875rem;margin-top:-2px}
 .prose .note{border-left:3px solid var(--line);padding-left:14px;color:var(--muted)}
 .band{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-weight:600;

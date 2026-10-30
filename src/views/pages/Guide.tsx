@@ -95,7 +95,7 @@ export function Guide() {
       <h3>Time of day and year</h3>
       <p>
         The dominant factor is how high the sun sits in the sky. UV peaks around
-        solar noon — which is not the same as midday on the clock, and is an
+        solar noon, which is not the same as midday on the clock, and is an
         hour off wherever daylight saving is in force. It rises and falls
         steeply either side, so the middle of the day carries most of the day's
         total exposure.
@@ -187,7 +187,7 @@ export function Guide() {
         </li>
         <li>
           <strong>Shade</strong>, particularly between mid-morning and
-          mid-afternoon — remembering that reflected UV still reaches you.
+          mid-afternoon, remembering that reflected UV still reaches you.
         </li>
         <li>
           <strong>Sunglasses</strong> meeting a recognised standard. Eyes are
@@ -205,7 +205,7 @@ export function Guide() {
         At 0–2 most people need no protection for ordinary outdoor activity.
         Some sun exposure helps the body make vitamin D, and the amount needed
         varies with skin type, location and season. How much is right for you is
-        a question for a doctor, not a website — particularly if you have a
+        a question for a doctor, not a website, particularly if you have a
         condition or take medication that affects sun sensitivity.
       </p>
 
