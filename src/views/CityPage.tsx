@@ -82,7 +82,7 @@ line-height:1;color:var(--muted);white-space:nowrap}
 .plot .lv{position:absolute;left:-30px;width:24px;transform:translateY(-50%);text-align:center;
 font-size:.75rem;font-weight:700;line-height:1;padding:2px 0;border-radius:4px}
 .plot .nowl{position:absolute;top:0;font-size:.75rem;font-weight:600;line-height:1;color:var(--muted)}
-.plot .dot{position:absolute;width:12px;height:12px;border-radius:50%;
+.plot .dot{position:absolute;width:14px;height:14px;border-radius:50%;
 transform:translate(-50%,-50%);border:2px solid var(--bg)}
 @media (min-width:620px){.plot{height:240px}}
 details.table{margin:10px 0}

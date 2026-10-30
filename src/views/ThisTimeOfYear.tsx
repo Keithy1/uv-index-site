@@ -17,11 +17,11 @@ import { bandFor, formatUvi } from "../lib/uv";
 export const NORMALS_CSS = `
 .normals{margin:8px 0 4px;padding-left:20px}
 .normals li{margin:3px 0}
-/* Capped at its drawn width, and lettered at 16 units: scaled down to a 360 px
-   phone that is just over 12 px, and it no longer balloons on a desktop. The
+/* Capped at its drawn width, and lettered at 17 units: 13 px on a 360 px phone, 12 px down
+   to 330 px, and it no longer balloons on a desktop. The
    bars do not grow in: they are figures, and figures never animate. */
 .months{display:block;width:100%;max-width:420px;height:auto;margin:10px 0 2px}
-.months text{font:16px system-ui,sans-serif;fill:var(--muted)}
+.months text{font:17px system-ui,sans-serif;fill:var(--muted)}
 .months .now text{fill:var(--fg);font-weight:700}
 `;
 
@@ -29,7 +29,7 @@ export const NORMALS_CSS = `
 function MonthStrip({ normals, month }: { normals: CityNormals; month: number }) {
   // H leaves room under the bars for the month letters and, under this month,
   // its value -- a first cut at 96 clipped that value off the bottom edge.
-  const W = 420, H = 122, top = 6, base = 80, gap = 6;
+  const W = 420, H = 124, top = 6, base = 80, gap = 6;
   const bar = (W - gap * 11) / 12;
   const scale = (base - top) / 14; // UV 14 fills the height; higher is clipped
   const label = normals.months
@@ -49,9 +49,9 @@ function MonthStrip({ normals, month }: { normals: CityNormals; month: number })
               stroke={i + 1 === month ? "var(--fg)" : "none"} stroke-width="2">
               <title>{`${MONTH_NAMES[i]}: ${m ? `typical peak ${formatUvi(m.median)}` : "no data"}`}</title>
             </rect>
-            <text x={x + bar / 2} y={base + 18} text-anchor="middle">{MONTH_NAMES[i]![0]}</text>
+            <text x={x + bar / 2} y={base + 19} text-anchor="middle">{MONTH_NAMES[i]![0]}</text>
             {m && i + 1 === month && (
-              <text x={x + bar / 2} y={base + 37} text-anchor="middle">{formatUvi(m.median)}</text>
+              <text x={x + bar / 2} y={base + 39} text-anchor="middle">{formatUvi(m.median)}</text>
             )}
           </g>
         );

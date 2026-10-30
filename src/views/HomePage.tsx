@@ -209,8 +209,8 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
 export function HomePage(view: HomeView) {
   const title = "UV Index Today and Tomorrow: Australia and the United States";
   const description =
-    "Live UV index by city, measured and forecast. Pick a country to see current " +
-    "readings, today's curve and sun protection times.";
+    "UV index by city: measured in Australia, forecast in the United States. Pick " +
+    "a country for current levels, today's curve and sun protection times.";
   const coming = COUNTRIES.filter((c) => c.status === "coming");
 
   const structuredData = [

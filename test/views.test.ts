@@ -238,6 +238,13 @@ describe("W2 and W5: words that match what is there", () => {
     expect(home).not.toMatch(/\blive UV index map\b/i);
   });
 
+  it("does not call the home page live in its search snippet either", () => {
+    const h = String(HomePage({ headlines: [], now: NOW }));
+    const description = h.match(/<meta name="description" content="(.*?)"/s)![1]!;
+    expect(description).not.toMatch(/\blive\b/i);
+    expect(description).toContain("forecast in the United States");
+  });
+
   it("labels the header menu for what it does", () => {
     expect(String(NotFound())).toContain("<summary>Choose a country</summary>");
   });
