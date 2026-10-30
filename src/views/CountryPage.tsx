@@ -709,8 +709,8 @@ export function CountryPage(view: CountryView) {
             : "There is no measured UV source for the United States, so “now” is " +
               "the forecast for the current hour rather than a measurement."}{" "}
           Each strip is a city's daylight hours on its own clock, coloured by band;
-          hatching means the forecast does not reach that hour, and a dash means
-          it does not cover the day.
+          hatching means the forecast does not reach that hour. A dash in place
+          of a figure means the forecast does not cover that day.
         </p>
         <CountryMapView
           rows={rows}

@@ -279,6 +279,13 @@ describe("Session 3: the country page as small multiples", () => {
     expect(h).toMatch(/#day-now:checked~\.list \.k-peak>\*/);
   });
 
+  it("draws no switch and no strip column when there is no forecast at all", () => {
+    const bare = country([row("perth", { peak: null, tomorrow: null, strip: null, tomorrowStrip: null })]);
+    expect(bare).not.toContain('type="radio"');
+    expect(bare).not.toContain('class="s"');
+    expect(bare).toContain('class="k-now"');
+  });
+
   it("never animates a strip", () => {
     expect(h).not.toMatch(/\.ms[^{]*\{[^}]*(animation|transition)/);
   });
