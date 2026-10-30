@@ -18,7 +18,7 @@ import type { Advice } from "../lib/current";
 import type { Location } from "../lib/locations";
 import { cityLabel, locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
-import { curvePeak, describeCurve, LOW_CLOUD_NOTE, minutesToClock, protectionWindow } from "../lib/chart";
+import { CHART_PAD_LEFT, curvePeak, describeCurve, LOW_CLOUD_NOTE, minutesToClock, protectionWindow } from "../lib/chart";
 import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
 import type { CityNormals } from "../lib/normals";
@@ -70,7 +70,28 @@ letter-spacing:-.03em}
 .delayed{border-left:4px solid #d32010;padding-left:12px;margin:12px 0}
 .chartbox{margin:8px 0 0;border:1px solid var(--line);border-radius:12px;padding:8px;
 background:var(--card)}
-.chartbox svg{display:block;width:100%;height:auto}
+/* The chart's geometry is SVG, stretched to the box; its words are HTML laid
+   over it. A 640-wide viewBox scaled to a 360 px phone set 11-unit labels at
+   about 7 px. Text in HTML stays at its own size whatever the chart's width,
+   and vector-effect keeps the strokes from stretching with it. Positions are
+   percentages of the plot, taken from the same geometry as the paths. */
+.plot{position:relative;height:200px;margin:4px 4px 0 32px}
+.plot svg{display:block;width:100%;height:100%;overflow:visible}
+.plot .hl{position:absolute;bottom:0;transform:translateX(-50%);font-size:.8125rem;
+line-height:1;color:var(--muted);white-space:nowrap}
+.plot .lv{position:absolute;left:-30px;width:24px;transform:translateY(-50%);text-align:center;
+font-size:.75rem;font-weight:700;line-height:1;padding:2px 0;border-radius:4px}
+.plot .nowl{position:absolute;top:0;font-size:.75rem;font-weight:600;line-height:1;color:var(--muted)}
+.plot .dot{position:absolute;width:12px;height:12px;border-radius:50%;
+transform:translate(-50%,-50%);border:2px solid var(--bg)}
+@media (min-width:620px){.plot{height:240px}}
+details.table{margin:10px 0}
+details.table summary{cursor:pointer;font-weight:600;color:var(--link)}
+details.table table{border-collapse:collapse;margin:8px 0;min-width:16rem}
+details.table th,details.table td{text-align:left;padding:4px 16px 4px 0;
+border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+details.table thead th{font-size:.875rem;color:var(--muted);font-weight:600}
+details.table tbody th{font-weight:400}
 .window{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:10px 0}
 .window strong{font-size:1.1rem}
 ul.todo{margin:8px 0;padding-left:20px}
@@ -79,18 +100,10 @@ ul.todo li{margin:4px 0}
 /* Where the day has got to, on a chart with no measured dot to show it. Grey
    and dashed, in no band colour, so it reads as a time and not a reading. */
 .nowmark line{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3;opacity:.5}
-.nowmark text{font-size:10px;font-weight:600;fill:var(--muted)}
-/* The day's curve draws left to right, the shading follows, and the latest
-   reading lands last. Without the media query the chart is simply there,
-   fully drawn -- the dasharray only exists inside it. */
-@media (prefers-reduced-motion:no-preference){
-.chartbox .line{stroke-dasharray:1;animation:uv-draw .9s ease-out both}
-.chartbox .area{animation:uv-fade .6s .3s ease-out both}
-.chartbox .now{transform-box:fill-box;transform-origin:center;animation:uv-pop .3s .85s ease-out both}
-@keyframes uv-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-@keyframes uv-fade{from{opacity:0}}
-@keyframes uv-pop{from{opacity:0;transform:scale(.4)}}
-}
+/* No motion here, on purpose. The curve used to draw itself in, the shading
+   fade and the measured dot pop: for most of a second the chart showed a day
+   that was not the forecast. Readings never animate. */
+.reading .credit{margin:6px 0 0;font-size:.875rem;color:var(--muted)}
 .nearby a{display:inline-block;padding:6px 12px;border:1px solid var(--line);
 border-radius:999px;text-decoration:none}
 .credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
@@ -130,61 +143,95 @@ function whatToDo(uvi: number): string[] {
   ];
 }
 
+/** A geometry position as a percentage of the plot, which starts at the left pad. */
+function pctX(g: ChartGeometry, x: number): string {
+  return `${(((x - CHART_PAD_LEFT) / (g.width - CHART_PAD_LEFT)) * 100).toFixed(2)}%`;
+}
+function pctY(g: ChartGeometry, y: number): string {
+  return `${((y / g.height) * 100).toFixed(2)}%`;
+}
+
+/** "12:00 pm: UV 9.0 Very High", for the tooltip on each hour. */
+function hourTitle(p: { minutes: number; uvi: number }): string {
+  return `${minutesToClock(p.minutes)}: UV ${formatUvi(p.uvi)} ${bandFor(p.uvi).name}`;
+}
+
 function Chart({ geometry, summary, peak }: { geometry: ChartGeometry; summary: string; peak: CurvePoint | null }) {
   const g = geometry;
+  const left = CHART_PAD_LEFT;
+  const top = 16, bottom = g.height - 24;
   return (
     <>
       <div class="chartbox">
-        {/* The chart is decorative to assistive technology: the same
-            information is in the sentence below it, in words. */}
-        <svg
-          viewBox={`0 0 ${g.width} ${g.height}`}
-          role="img"
-          aria-label={summary}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {g.hours.map((h) => (
-            <g key={h.label}>
-              <line x1={h.x} y1={16} x2={h.x} y2={g.height - 24}
-                stroke="var(--line)" stroke-width="1" />
-              <text x={h.x} y={g.height - 8} fill="var(--muted)"
-                font-size="11" text-anchor="middle">{h.label}</text>
-            </g>
-          ))}
-          {g.levels.map((l) => (
-            <g key={l.uvi}>
-              {/* 3 keeps its dashed rule: it is where protection starts. The
-                  other levels get a faint solid line, there to read against. */}
-              <line x1={28} y1={l.y} x2={g.width - 12} y2={l.y}
+        <div class="plot">
+          {/* The left pad is cropped off the viewBox, and the level labels sit
+              in HTML in the margin instead. The same information is in the
+              sentence below and the table under it, in words. */}
+          <svg
+            viewBox={`${left} 0 ${g.width - left} ${g.height}`}
+            role="img"
+            aria-label={summary}
+            preserveAspectRatio="none"
+          >
+            {g.hours.map((h) => (
+              <line key={h.label} x1={h.x} y1={top} x2={h.x} y2={bottom}
+                stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke" />
+            ))}
+            {/* 3 keeps its dashed rule: it is where protection starts. The
+                other levels get a faint solid line, there to read against. */}
+            {g.levels.map((l) => (
+              <line key={l.uvi} x1={left} y1={l.y} x2={g.width - 12} y2={l.y}
                 stroke={l.uvi === 3 ? "var(--muted)" : "var(--line)"} stroke-width="1"
-                stroke-dasharray={l.uvi === 3 ? "4 4" : undefined} />
-              {/* Each number in its band's colour, as a pill rather than as
-                  coloured text: Moderate's yellow is unreadable as text on a
-                  light background, but the badge pairing (band.fg on band.bg)
-                  already meets contrast everywhere else on the site. */}
-              <rect x={3} y={l.y - 7} width={21} height={14} rx={4} fill={bandFor(l.uvi).bg} />
-              <text x={13.5} y={l.y + 3.5} fill={bandFor(l.uvi).fg} font-size="10"
-                font-weight="700" text-anchor="middle">{l.uvi}</text>
-            </g>
+                stroke-dasharray={l.uvi === 3 ? "4 4" : undefined}
+                vector-effect="non-scaling-stroke" />
+            ))}
+            {g.now && (
+              <g class="nowmark">
+                <line x1={g.now.x} y1={top} x2={g.now.x} y2={bottom} vector-effect="non-scaling-stroke" />
+              </g>
+            )}
+            <path class="area" d={g.areaPath} fill="var(--link)" opacity="0.14" />
+            <path class="line" d={g.linePath} fill="none" stroke="var(--link)"
+              stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+              vector-effect="non-scaling-stroke" />
+            {/* One invisible column per hour, so pointing at the chart names
+                the hour and its level. Native tooltips, so no script. */}
+            {g.points.map((p, i) => {
+              const prev = g.points[i - 1], next = g.points[i + 1];
+              const x0 = prev ? (prev.x + p.x) / 2 : left;
+              const x1 = next ? (next.x + p.x) / 2 : g.width - 12;
+              return (
+                <rect key={p.minutes} x={x0.toFixed(1)} y="0" width={(x1 - x0).toFixed(1)}
+                  height={g.height} fill="transparent">
+                  <title>{hourTitle(p)}</title>
+                </rect>
+              );
+            })}
+          </svg>
+          {/* Each level in its band's colour, as a pill rather than coloured
+              text: Moderate's yellow is unreadable as text on a light
+              background, but band.fg on band.bg meets contrast everywhere. */}
+          {g.levels.map((l) => (
+            <span key={l.uvi} class="lv" aria-hidden="true"
+              style={`top:${pctY(g, l.y)};background:${bandFor(l.uvi).bg};color:${bandFor(l.uvi).fg}`}>
+              {l.uvi}
+            </span>
+          ))}
+          {g.hours.map((h) => (
+            <span key={h.label} class="hl" aria-hidden="true" style={`left:${pctX(g, h.x)}`}>{h.label}</span>
           ))}
           {g.now && (
-            <g class="nowmark">
-              <line x1={g.now.x} y1={16} x2={g.now.x} y2={g.height - 24} />
-              <text x={g.now.x} y={11}
-                text-anchor={g.now.x > g.width - 40 ? "end" : g.now.x < 48 ? "start" : "middle"}>
-                Now
-              </text>
-            </g>
+            <span class="nowl" aria-hidden="true"
+              style={`left:${pctX(g, g.now.x)};transform:translateX(${
+                g.now.x > g.width - 40 ? "-100%" : g.now.x < 48 ? "0" : "-50%"})`}>
+              Now
+            </span>
           )}
-          <path class="area" d={g.areaPath} fill="var(--link)" opacity="0.14" />
-          {/* pathLength="1", so the draw-in below needs no measuring script. */}
-          <path class="line" d={g.linePath} pathLength="1" fill="none" stroke="var(--link)"
-            stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
           {g.measured && (
-            <circle class="now" cx={g.measured.x} cy={g.measured.y} r="5"
-              fill={bandFor(g.measured.uvi).bg} stroke="var(--bg)" stroke-width="2" />
+            <span class="dot" aria-hidden="true"
+              style={`left:${pctX(g, g.measured.x)};top:${pctY(g, g.measured.y)};background:${bandFor(g.measured.uvi).bg}`} />
           )}
-        </svg>
+        </div>
       </div>
       {peak ? (
         <p class="small muted peakline">
@@ -198,6 +245,27 @@ function Chart({ geometry, summary, peak }: { geometry: ChartGeometry; summary: 
       ) : (
         <p class="small muted">{summary}</p>
       )}
+      <details class="table">
+        <summary>Hour by hour</summary>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">UV index</th>
+              <th scope="col">Band</th>
+            </tr>
+          </thead>
+          <tbody>
+            {g.points.map((p) => (
+              <tr key={p.minutes}>
+                <td>{minutesToClock(p.minutes)}</td>
+                <td>{formatUvi(p.uvi)}</td>
+                <td>{bandFor(p.uvi).name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
     </>
   );
 }
@@ -265,32 +333,10 @@ export function CityPage(view: CityView) {
     >
       <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + (view.normals ? NORMALS_CSS : "") }} />
 
-      <h1>UV Index {label} today</h1>
+      <h1>UV index {label} today</h1>
 
       {reading ? (
         <>
-          <p class="muted small">
-            {view.measured ? (
-              <>
-                {reading.stale ? "Last measured " : "Measured "}
-                {localTimeWithZone(reading.validAt, tz, locale)} on {localDate(reading.validAt, tz, locale)}
-                {" · "}
-                {howLongAgo(reading.validAt, now)}
-              </>
-            ) : (
-              <>
-                {/* Never "measured": there is no US instrument to measure it.
-                    And say whose clock it is. "Forecast for 6:00 PM PDT on
-                    Monday, October 26", read in Sydney on Tuesday the 27th,
-                    looked like a stale date or the time the forecast was made;
-                    it is the hourly value for the hour nearest now, in this
-                    city's own time. */}
-                Hourly forecast for {localTimeWithZone(reading.validAt, tz, locale)}, the
-                current hour in {loc.name} ({localDate(reading.validAt, tz, locale)})
-              </>
-            )}
-          </p>
-
           <div class="reading">
             <div class="n">{formatUvi(reading.uvi)}</div>
             <div>
@@ -299,6 +345,32 @@ export function CityPage(view: CityView) {
                 {band!.name}
               </span>
               <p class="advice">{band!.advice}</p>
+              {/* The credit is part of the reading, not a footnote to it: who
+                  produced the number, and for when. */}
+              <p class="credit">
+                {view.measured ? (
+                  reading.stale ? (
+                    <>
+                      Last measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
+                      {localDate(reading.validAt, tz, locale)}, {howLongAgo(reading.validAt, now)}
+                    </>
+                  ) : (
+                    <>
+                      Measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)},{" "}
+                      {howLongAgo(reading.validAt, now)}
+                    </>
+                  )
+                ) : (
+                  <>
+                    {/* Never "measured": there is no US instrument. And say
+                        whose clock it is: "6:00 pm PDT on Monday, October 26",
+                        read in Sydney on Tuesday the 27th, looked like a stale
+                        date; it is the hour nearest now, in this city's time. */}
+                    Forecast by the US EPA and CAMS for {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
+                    {localDate(reading.validAt, tz, locale)}, the current hour in {loc.name}
+                  </>
+                )}
+              </p>
             </div>
           </div>
 
@@ -344,7 +416,7 @@ export function CityPage(view: CityView) {
               under-warning is the dangerous error. Said plainly on the page. */}
           <p class="small muted">
             Calculated from the clear-sky forecast, so it assumes no cloud. Cloud may
-            reduce the UV level on the day, but it can clear at any time — treat these
+            reduce the UV level on the day, but it can clear at any time, so treat these
             as the hours to be careful.
           </p>
         </>

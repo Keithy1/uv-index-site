@@ -17,21 +17,19 @@ import { bandFor, formatUvi } from "../lib/uv";
 export const NORMALS_CSS = `
 .normals{margin:8px 0 4px;padding-left:20px}
 .normals li{margin:3px 0}
-.months{display:block;width:100%;height:auto;margin:10px 0 2px}
-.months text{font:11px system-ui,sans-serif;fill:var(--muted)}
+/* Capped at its drawn width, and lettered at 16 units: scaled down to a 360 px
+   phone that is just over 12 px, and it no longer balloons on a desktop. The
+   bars do not grow in: they are figures, and figures never animate. */
+.months{display:block;width:100%;max-width:420px;height:auto;margin:10px 0 2px}
+.months text{font:16px system-ui,sans-serif;fill:var(--muted)}
 .months .now text{fill:var(--fg);font-weight:700}
-@media (prefers-reduced-motion:no-preference){
-.months rect{transform-box:fill-box;transform-origin:bottom;
-animation:uv-rise .45s ease-out both;animation-delay:calc(var(--i)*35ms)}
-@keyframes uv-rise{from{transform:scaleY(0)}}
-}
 `;
 
 /** Twelve bars of the median daily peak, this month outlined. Server-drawn. */
 function MonthStrip({ normals, month }: { normals: CityNormals; month: number }) {
   // H leaves room under the bars for the month letters and, under this month,
   // its value -- a first cut at 96 clipped that value off the bottom edge.
-  const W = 420, H = 108, top = 6, base = 74, gap = 6;
+  const W = 420, H = 122, top = 6, base = 80, gap = 6;
   const bar = (W - gap * 11) / 12;
   const scale = (base - top) / 14; // UV 14 fills the height; higher is clipped
   const label = normals.months
@@ -45,13 +43,15 @@ function MonthStrip({ normals, month }: { normals: CityNormals; month: number })
         const h = m ? Math.max(2, Math.min(14, m.median) * scale) : 2;
         const band = m ? bandFor(m.median) : null;
         return (
-          <g key={i} class={i + 1 === month ? "now" : undefined} style={`--i:${i}`}>
+          <g key={i} class={i + 1 === month ? "now" : undefined}>
             <rect x={x} y={base - h} width={bar} height={h} rx="3"
               fill={band ? band.bg : "var(--line)"}
-              stroke={i + 1 === month ? "var(--fg)" : "none"} stroke-width="2" />
-            <text x={x + bar / 2} y={base + 14} text-anchor="middle">{MONTH_NAMES[i]![0]}</text>
+              stroke={i + 1 === month ? "var(--fg)" : "none"} stroke-width="2">
+              <title>{`${MONTH_NAMES[i]}: ${m ? `typical peak ${formatUvi(m.median)}` : "no data"}`}</title>
+            </rect>
+            <text x={x + bar / 2} y={base + 18} text-anchor="middle">{MONTH_NAMES[i]![0]}</text>
             {m && i + 1 === month && (
-              <text x={x + bar / 2} y={base + 28} text-anchor="middle">{formatUvi(m.median)}</text>
+              <text x={x + bar / 2} y={base + 37} text-anchor="middle">{formatUvi(m.median)}</text>
             )}
           </g>
         );
@@ -104,6 +104,27 @@ export function ThisTimeOfYear({
         <li>11 or more, Extreme, {shareOfDays(m.extreme, name)}</li>
       </ul>
       <MonthStrip normals={normals} month={month} />
+      <details class="table">
+        <summary>Every month as a table</summary>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">Typical peak</th>
+              <th scope="col">Band</th>
+            </tr>
+          </thead>
+          <tbody>
+            {normals.months.map((n, i) => (
+              <tr key={i}>
+                <th scope="row">{MONTH_NAMES[i]}</th>
+                <td>{n ? formatUvi(n.median) : "No data"}</td>
+                <td>{n ? bandFor(n.median).name : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
       {normals.via && (
         <p class="small muted">
           NOAA does not forecast {city} separately; these are its forecasts for{" "}

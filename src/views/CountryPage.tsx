@@ -11,7 +11,7 @@
  */
 import type { CountrySettings, Location } from "../lib/locations";
 import { cityLabel } from "../lib/locations";
-import { localeFor, localTimeWithZone } from "../lib/time";
+import { agoShort, localeFor, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi } from "../lib/uv";
 import { Layout, ORIGIN } from "./Layout";
 
@@ -134,18 +134,28 @@ table{border-collapse:collapse;width:100%;margin:8px 0}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 /* Column headings only. The city cells are row headers (th scope="row") for
    screen readers, and must not inherit the small uppercase treatment. */
-thead th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;
-color:var(--muted);font-weight:600}
+thead th{font-size:.875rem;color:var(--muted);font-weight:600}
 tbody th{font-weight:400}
 .uvi{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .uvi b{font-variant-numeric:tabular-nums;font-size:1.02rem;min-width:2.1em;
 display:inline-block;text-align:right}
 td.t{color:var(--muted);font-size:.85rem;white-space:nowrap}
-tr.stale td{opacity:.62}
+/* Past the staleness rule: grey, with no band colour, and its age said. A
+   faded row that kept its band pill still read as a current level. */
+.uvi.old b{color:var(--muted)}
+.uvi.old .ago{color:var(--muted);font-size:.85rem}
+.tablewrap{overflow-x:auto}
 .credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
 font-size:.82rem;color:var(--muted)}
 .credits p{margin:4px 0}
 @media (max-width:460px){th.hide,td.hide{display:none}}
+/* On a phone the pill shrinks to a swatch. Its longest word, "Very High",
+   three times over made /us/ 401 px wide at 360. The word is still there at
+   zero size, so a screen reader reads it; a separate swatch element cost
+   13 KB across the US page's 150 cells. */
+@media (max-width:420px){.uvi .band{font-size:0;width:12px;height:12px;padding:0;
+border-radius:3px;box-shadow:inset 0 0 0 1px rgb(0 0 0/.15)}
+th,td{padding:8px 4px}}
 `;
 
 /**
@@ -180,10 +190,21 @@ function Uvi({ uvi }: { uvi: number | null }) {
   );
 }
 
-function UviCell({ uvi }: { uvi: number | null }) {
+/**
+ * The level now. A reading past the staleness rule is shown, but as what it
+ * is: an old number, in grey, with no band, and how old it is.
+ */
+function NowCell({ row, now }: { row: CityRow; now: Date }) {
   return (
-    <td>
-      <Uvi uvi={uvi} />
+    <td class="now">
+      {row.stale && row.uvi !== null && row.validAt ? (
+        <span class="uvi old">
+          <b>{formatUvi(row.uvi)}</b>
+          <span class="ago">{agoShort(row.validAt, now)}</span>
+        </span>
+      ) : (
+        <Uvi uvi={row.uvi} />
+      )}
     </td>
   );
 }
@@ -205,7 +226,7 @@ function switchRules(views: readonly ViewId[]): string {
   for (const view of views) {
     css +=
       `#day-${view}:checked~.dayswitch label[for="day-${view}"]` +
-      `{background:var(--link);color:#fff}`;
+      `{background:var(--link);color:var(--bg)}`;
     // Focus must show on the label, since the radio itself is off-screen.
     css +=
       `#day-${view}:focus-visible~.dayswitch label[for="day-${view}"]` +
@@ -237,7 +258,7 @@ function CityPicker({ rows }: { rows: readonly CityRow[] }) {
     .sort((a, b) => cityLabel(a).localeCompare(cityLabel(b)));
   return (
     <details class="citypick">
-      <summary>Choose city</summary>
+      <summary>Choose a city</summary>
       <ul>
         {cities.map((l) => (
           <li key={l.id}>
@@ -275,11 +296,14 @@ function MarkerLayer({
   rows,
   map,
   value,
+  old,
   linked,
 }: {
   rows: readonly CityRow[];
   map: CountryMap;
   value: (r: CityRow) => number | null;
+  /** Past the staleness rule: drawn grey, with no band, like its table row. */
+  old?: (r: CityRow) => boolean;
   linked: boolean;
 }) {
   return (
@@ -290,10 +314,11 @@ function MarkerLayer({
         const p = map.project(r.location.lat, r.location.lon);
         const x = r1(p.x), y = r1(p.y);
         const band = bandFor(uvi);
+        const grey = old?.(r) ?? false;
         const pin = (
           <g key={r.location.id} class={`pin p-${r.location.id}`}>
-            <circle cx={x} cy={y} r="6" fill={band.bg} />
-            <text x={x} y={r1(y + 3.2)} fill={band.fg}>{Math.round(uvi)}</text>
+            <circle cx={x} cy={y} r="6" fill={grey ? "var(--line)" : band.bg} />
+            <text x={x} y={r1(y + 3.2)} fill={grey ? "var(--muted)" : band.fg}>{Math.round(uvi)}</text>
           </g>
         );
         return linked ? (
@@ -364,7 +389,13 @@ function CountryOutline({
   cityPages: boolean;
 }) {
   // A view only appears if there is data behind it.
-  const views: { id: ViewId; label: string; caption: string; value: (r: CityRow) => number | null }[] =
+  const views: {
+    id: ViewId;
+    label: string;
+    caption: string;
+    value: (r: CityRow) => number | null;
+    old?: (r: CityRow) => boolean;
+  }[] =
     [
       {
         id: "now",
@@ -373,6 +404,7 @@ function CountryOutline({
           ? "Showing the level measured now."
           : "Showing the forecast for the current hour; there is no measured UV source for the United States.",
         value: (r) => r.uvi,
+        old: (r) => r.stale,
       },
     ];
   if (rows.some((r) => r.peak !== null)) {
@@ -431,7 +463,7 @@ function CountryOutline({
               beside its own marker is covered by the next marker along. */}
           {views.map((v) => (
             <g key={v.id} class={`m-${v.id}`}>
-              <MarkerLayer rows={rows} map={map} value={v.value} linked={cityPages} />
+              <MarkerLayer rows={rows} map={map} value={v.value} old={v.old} linked={cityPages} />
               <TipLayer rows={rows} map={map} value={v.value} />
             </g>
           ))}
@@ -473,9 +505,15 @@ export function countryTitle(name: string, measured: boolean): string {
     : `UV Index Today and Tomorrow in ${inProse(name)}: Every City`;
 }
 
-/** The H1, in step with the title. */
+/**
+ * The H1: the title's own words in sentence case, less the ": Every City"
+ * that only a search result needs. /au/'s said "UV Index Australia" under a
+ * title about today and tomorrow, and /us/ repeated itself in an H2.
+ */
 export function countryHeading(name: string, measured: boolean): string {
-  return measured ? `UV Index ${name}` : `UV index today across ${inProse(name)}`;
+  return measured
+    ? `UV index ${name} today and tomorrow`
+    : `UV index today and tomorrow in ${inProse(name)}`;
 }
 
 export function CountryPage(view: CountryView) {
@@ -575,12 +613,11 @@ export function CountryPage(view: CountryView) {
         cityPages={view.cityPages}
       />
 
-      <h2 id="tomorrow">
-        {view.measured
-          ? `UV index today and tomorrow in ${country.name}`
-          : `UV index today and tomorrow across ${inProse(country.name)}`}
-      </h2>
+      {/* The H1 already says "today and tomorrow"; this heading says what
+          is under it. It keeps the #tomorrow anchor the old URLs 301 to. */}
+      <h2 id="tomorrow">Every city</h2>
       {view.cityPages && <CityPicker rows={rows} />}
+      <div class="tablewrap">
       <table>
         <thead>
           <tr>
@@ -608,19 +645,20 @@ export function CountryPage(view: CountryView) {
                   </span>
                 )}
               </th>
-              <UviCell uvi={r.uvi} />
+              <NowCell row={r} now={now} />
               <td class="hide"><Uvi uvi={r.peak} /></td>
               <td><Uvi uvi={r.tomorrow} /></td>
               {view.measured && (
                 <td class="t hide">
                   {r.validAt ? localTimeWithZone(r.validAt, r.location.tz, localeFor(r.location.country)) : "—"}
-                  {r.stale ? " (delayed)" : ""}
+
                 </td>
               )}
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
       <p class="small muted">
         Sorted by the current level, highest first, then by today's peak.{" "}
         {view.measured
