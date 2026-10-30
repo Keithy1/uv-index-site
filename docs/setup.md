@@ -76,7 +76,15 @@ Stored as GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 Proven able to deploy on 27 October 2026, when `.github/workflows/deploy.yml`
 ran by hand, passed its 224 tests and shipped version `ebc7108e`.
 
-Deploys are still by hand day to day (`npx wrangler deploy`). The one
+Deploys are still by hand day to day, with `npm run deploy`, never a bare
+`npx wrangler deploy`. `scripts/deploy.mjs` deploys only a clean checkout of
+the pushed `origin/main`, then tags that commit `deploy-YYYY-MM-DD-HHMM` (UTC)
+with the Worker version id in the tag message, and pushes the tag. To roll
+back: `npx wrangler rollback` restores the previous Worker at once (the tag
+message names each deploy's version id, for going back further); then
+`git revert` the bad commit on `main`, push, and `npm run deploy` again, so
+`main` and the site agree. `git tag -l "deploy-*"` lists every version that
+has run, and `git diff <tag>` shows what changed since. The one
 automatic deploy is the yearly normals run (June), which calls `deploy.yml`
 only when the figures change -- so new "this time of year" numbers reach the
 site without anyone having to remember. `deploy.yml` can also be run from the
