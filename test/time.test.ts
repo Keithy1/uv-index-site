@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agoShort,
   howLongAgo,
   localDateKey,
   localeFor,
@@ -126,5 +127,39 @@ describe("the locale a zone is named in", () => {
     const t = "2026-10-26T02:00:00Z";
     expect(localTimeWithZone(t, "Australia/Sydney", localeFor("au"))).toContain("AEDT");
     expect(localTimeWithZone(t, "Australia/Perth", localeFor("au"))).toContain("AWST");
+  });
+});
+
+describe("one clock, written one way", () => {
+  // Miami showed "4:00 PM" while every Australian page said "4:00 pm": en-US
+  // and en-AU disagree on case, and the page used whichever the place had.
+  it("writes am and pm in lower case whatever the locale", () => {
+    const miami = "2026-10-26T20:00:00Z";
+    expect(localTimeWithZone(miami, "America/New_York", localeFor("us"))).toBe("4:00 pm EDT");
+    expect(localTimeWithZone("2026-10-26T15:30:00Z", "America/Los_Angeles", localeFor("us"))).toBe(
+      "8:30 am PDT",
+    );
+  });
+
+  it("names midnight and noon the way the chart does", () => {
+    expect(localTimeWithZone("2026-10-26T04:00:00Z", "America/New_York", "en-US")).toBe("12:00 am EDT");
+    expect(localTimeWithZone("2026-10-26T04:00:00Z", "Australia/Perth")).toBe("12:00 pm AWST");
+  });
+});
+
+describe("agoShort, for a table cell", () => {
+  const now = new Date("2026-10-26T04:00:00Z");
+  const before = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString();
+
+  it("counts minutes under an hour", () => {
+    expect(agoShort(before(0), now)).toBe("just now");
+    expect(agoShort(before(25), now)).toBe("25 min ago");
+  });
+
+  it("counts whole hours after that, then days", () => {
+    expect(agoShort(before(60), now)).toBe("1 h ago");
+    expect(agoShort(before(125), now)).toBe("2 h ago");
+    expect(agoShort(before(47 * 60), now)).toBe("47 h ago");
+    expect(agoShort(before(49 * 60), now)).toBe("2 days ago");
   });
 });

@@ -43,11 +43,22 @@ function formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.Da
   return found;
 }
 
-/** "2:34 pm" */
-export function localTime(iso: string, tz: string, locale = "en-AU"): string {
-  return formatter(locale, { timeZone: tz, hour: "numeric", minute: "2-digit" })
-    .format(new Date(iso))
-    .replace(/ /g, " ");
+/**
+ * Minutes since local midnight as "12:20 pm": the site's one way of writing a
+ * time. Every clock on every page comes through here, so they cannot disagree.
+ * Intl could not be trusted with it: en-US writes "4:00 PM" and en-AU "4:00 pm",
+ * and Miami's page said the first while Sydney's said the second.
+ */
+export function minutesToClock(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const hour12 = ((h + 11) % 12) + 1;
+  return `${hour12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+}
+
+/** "2:34 pm", in the location's zone. */
+export function localTime(iso: string, tz: string): string {
+  return minutesToClock(localMinutes(iso, tz));
 }
 
 /** "2:34 pm AWST" — the zone abbreviation matters on a page about a place. */
@@ -59,7 +70,7 @@ export function localTimeWithZone(iso: string, tz: string, locale = "en-AU"): st
     timeZoneName: "short",
   }).formatToParts(new Date(iso));
   const zone = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
-  return `${localTime(iso, tz, locale)} ${zone}`.trim();
+  return `${localTime(iso, tz)} ${zone}`.trim();
 }
 
 /** "Sunday 25 October" */
@@ -112,4 +123,17 @@ export function howLongAgo(iso: string, now: Date = new Date()): string {
   if (minutes < 60) return `${minutes} minutes ago`;
   const hours = Math.round(minutes / 60);
   return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+/**
+ * "2 h ago": the same idea as howLongAgo, short enough for a table cell. Used
+ * where a row is past the staleness rule, so the age is the point.
+ */
+export function agoShort(iso: string, now: Date = new Date()): string {
+  const minutes = Math.round((now.getTime() - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} days ago`;
 }
