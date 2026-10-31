@@ -51,6 +51,15 @@ background:repeating-linear-gradient(135deg,transparent 0 4px,var(--horizon) 4px
 /* The words follow the bracket's left edge, but never off the right of the strip. */
 .strip .cover{margin:var(--s-1) 0 0;font-weight:700}
 .strip figcaption{font-size:var(--t-0);color:var(--haze);margin-top:var(--s-2)}
+/* Where measured hours end and forecast ones begin: a tick at the boundary,
+   each word on its own side, pulled inward near the strip's ends. Forecast
+   values are set lighter than measured ones, so a cell says which it is. */
+.strip .phase{position:relative;height:1.5em;font-size:var(--t-0);line-height:1.2;margin-bottom:var(--s-1)}
+.strip .phase i{position:absolute;top:0;bottom:-4px;left:var(--p);border-left:2px solid var(--shade)}
+.strip .phase b{position:absolute;top:0;white-space:nowrap}
+.strip .phase .pm{right:calc(100% - max(var(--p),5.5em));padding-right:6px;color:var(--shade)}
+.strip .phase .pf{left:min(var(--p),calc(100% - 5.5em));padding-left:6px;color:var(--haze);font-weight:400}
+.strip .f .v{font-weight:400}
 .strip.compact .well{height:28px}
 /* Small: a label every third hour, wherever it is drawn. */
 .strip.compact .t{visibility:hidden}.strip.compact .h3 .t{visibility:visible}
@@ -94,23 +103,36 @@ function pct(f: number): string {
 export function DayStripView({
   strip,
   credit,
+  measuredBy,
   compact = false,
 }: {
   strip: DayStrip;
-  /** "Forecast by CAMS": who made the values in the cells. */
+  /** "Forecast by CAMS": who made the forecast values in the cells. */
   credit: string;
+  /** "ARPANSA": who measured the hours already gone, where anyone did. */
+  measuredBy?: string;
   compact?: boolean;
 }) {
   const w = strip.window;
+  const k = measuredBy ? strip.measuredCells : 0;
+  const n = strip.cells.length;
   return (
     <figure class={compact ? "strip compact" : "strip"}>
-      <div class="cells" style={`--n:${strip.cells.length}`} aria-hidden="true">
+      {k > 0 && !compact && (
+        <div class="phase" style={`--p:${pct(k / n)}`} aria-hidden="true">
+          {k < n && <i />}
+          <b class="pm">Measured</b>
+          {k < n && <b class="pf">Forecast</b>}
+        </div>
+      )}
+      <div class="cells" style={`--n:${n}`} aria-hidden="true">
         {strip.cells.map((cell) => {
           const hour = Math.floor(cell.minutes / 60);
           const cls = [
             "c",
             cell.band === null ? "x" : `b${cell.band}`,
             cell.now ? "now" : "",
+            k > 0 && !cell.measured ? "f" : "",
             hour % 2 ? "odd" : "",
             hour % 3 === 0 ? "h3" : "",
           ].filter(Boolean).join(" ");
@@ -136,7 +158,10 @@ export function DayStripView({
       )}
       <figcaption>
         <span class="vh">{strip.summary} </span>
-        {credit}, cloud included.
+        {k > 0
+          ? `Measured by ${measuredBy} ${strip.cells[k - 1]!.now ? "up to now" : `to ${minutesToClock(strip.cells[k - 1]!.minutes)}`}` +
+            (k < n ? `, then ${credit.charAt(0).toLowerCase()}${credit.slice(1)}, cloud included.` : ".")
+          : `${credit}, cloud included.`}
         {w && !compact
           ? " Cover-up times are from the clear-sky forecast, because cloud can clear at any time."
           : ""}

@@ -29,6 +29,7 @@ import {
   currentLevel,
   nextLocalDay,
   peakOnLocalDay,
+  peakToday,
   pointsOnLocalDay,
 } from "./lib/current";
 import { camsStale, DISPATCH_SOURCE, requestFetch, shouldDispatch } from "./lib/dispatch";
@@ -453,7 +454,17 @@ app.get("/:country/", async (c) => {
     const row = data.get(location.id);
     const today = localDateKey(now.toISOString(), location.tz);
     const peaks = pointsOnLocalDay(row?.forecast ?? [], location.tz, today);
-    const todayPeak = peakOnLocalDay(peaks);
+    const nowMinutes = localMinutes(now.toISOString(), location.tz);
+    // Today's measurements, as the cron folded them into city_now: the hours
+    // already gone, and the day's highest for the peak.
+    const day = page.measured && row?.measuredDay?.day === today ? row.measuredDay : null;
+    const measuredHours = day ? pointsOnLocalDay(day.hours, location.tz, today) : [];
+    const measuredMax = day ? pointsOnLocalDay([day.max], location.tz, today)[0] ?? null : null;
+    const latest =
+      page.measured && row?.latest && !row.latest.stale && localDateKey(row.latest.validAt, location.tz) === today
+        ? { minutes: localMinutes(row.latest.validAt, location.tz), uvi: row.latest.uvi }
+        : null;
+    const todayPeak = peakToday(peaks, measuredMax, nowMinutes);
     const tomorrowPoints = pointsOnLocalDay(row?.forecast ?? [], location.tz, nextLocalDay(today));
     const tomorrowPeak = peakOnLocalDay(tomorrowPoints);
 
@@ -480,7 +491,9 @@ app.get("/:country/", async (c) => {
         points: peaks,
         sun: sunTimes(location.lat, location.lon, today, location.tz),
         window: null,
-        nowMinutes: localMinutes(now.toISOString(), location.tz),
+        nowMinutes,
+        measured: measuredHours,
+        latest,
       }),
       tomorrowStrip: dayStrip({
         points: tomorrowPoints,
@@ -592,7 +605,14 @@ app.get("/:country/:slug/", async (c) => {
     sun: sunTimes(location.lat, location.lon, today, location.tz),
     window: protectionWindow(clearToday),
     nowMinutes,
+    measured: page.measured ? measuredPoints : [],
+    latest: page.measured ? latestPoint : null,
   });
+  // The highest of what has been measured today and what is still forecast.
+  const measuredMax = measuredPoints.length
+    ? measuredPoints.reduce((a, b) => (b.uvi > a.uvi ? b : a))
+    : null;
+  const todayPeak = peakToday(curve, page.measured ? measuredMax : null, nowMinutes);
   const tomorrowStrip = dayStrip({
     points: data.forecastToday.filter((p) => onTomorrow(p.validAt)).map(toPoint),
     sun: sunTimes(location.lat, location.lon, tomorrowKey, location.tz),
@@ -662,6 +682,7 @@ app.get("/:country/:slug/", async (c) => {
       strip={strip}
       tomorrowStrip={tomorrowStrip}
       stripCredit={stripCredit}
+      peakToday={todayPeak}
     />,
   );
 });

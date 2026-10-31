@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS city_now (
   measured_uvi       REAL,
   measured_at        TEXT,                 -- ISO 8601 UTC; staleness is judged at render
   measured_source    TEXT,
+  measured_day_json  TEXT,                 -- {"d":"2026-10-31","max":[at,uvi],"h":[[at,uvi],...]}: today, local
   forecast_json      TEXT,                 -- [["2026-10-27T03:00:00Z", 5.2], ...]
   alerts_json        TEXT,                 -- ["2026-10-27"]: local dates with an EPA UV Alert
   forecast_built_at  TEXT                  -- ISO 8601 UTC

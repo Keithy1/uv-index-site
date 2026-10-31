@@ -69,6 +69,7 @@ function city(location: typeof PERTH, measured: boolean, over: Partial<CityView>
       label: "Tomorrow",
     }),
     stripCredit: measured ? "Forecast by CAMS" : "Forecast by the US EPA and CAMS",
+    peakToday: null,
     ...over,
   };
   return String(CityPage(v));
@@ -262,7 +263,7 @@ describe("Session 3: the country page as small multiples", () => {
   it("credits ARPANSA for the value now and CAMS for the strip, in the list itself", () => {
     const list = h.match(/<div class="list">.*?<\/table>/s)![0];
     expect(copy(list)).toContain("Measured by ARPANSA");
-    expect(copy(list)).toContain("Today hour by hour, forecast by CAMS");
+    expect(copy(list)).toContain("Today hour by hour, measured by ARPANSA up to now, then forecast by CAMS");
   });
 
   it("says forecast, never measured, for the United States", () => {
@@ -447,5 +448,31 @@ describe("G2: one panel, not a page of boxes", () => {
   it("gives the chart no panel of its own", () => {
     expect(city(PERTH, true)).toMatch(/\.chartbox\{[^}]*\}/);
     expect(city(PERTH, true).match(/\.chartbox\{[^}]*\}/)![0]).not.toMatch(/background|border/);
+  });
+});
+
+describe("the strip says which hours were measured and which are forecast", () => {
+  const readings = [5, 6, 7, 8, 9, 10, 11].map((h) => ({ minutes: h * 60, uvi: h / 2 }));
+  const strip = dayStrip({
+    points: CURVE,
+    sun: { sunrise: 5 * 60 + 20, sunset: 18 * 60 + 40 },
+    window: protectionWindow(CURVE),
+    nowMinutes: 12 * 60,
+    measured: readings,
+    latest: { minutes: 12 * 60, uvi: 8.6 },
+  });
+
+  it("labels both, credits both, and names today's peak with its source", () => {
+    const h = city(PERTH, true, { strip, peakToday: { minutes: 12 * 60, uvi: 8.6, measured: true } });
+    expect(h).toContain('class="pm">Measured');
+    expect(h).toContain('class="pf">Forecast');
+    expect(copy(h)).toContain("Measured by ARPANSA up to now, then forecast by CAMS, cloud included.");
+    const line = copy(h).match(/Peak today[^.]*\.\d[^.]*\./)?.[0];
+    expect(line).toMatch(/^Peak today 8\.6 Very High\s*, measured by ARPANSA at 12(:00)? pm\.$/);
+  });
+
+  it("never says measured in the United States", () => {
+    const h = city(PERTH, false, { strip: dayStrip({ ...{ points: CURVE, sun: { sunrise: 320, sunset: 1120 }, window: null, nowMinutes: 720 } }) });
+    expect(h).not.toContain('class="pm"');
   });
 });

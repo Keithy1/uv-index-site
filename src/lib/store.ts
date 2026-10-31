@@ -7,8 +7,10 @@
  *   * a reading is only "current" if it is recent. Staleness is decided here,
  *     once, rather than in each template.
  */
+import { locationById } from "./locations";
 import type { Reading, SourceResult } from "./records";
 import { toIsoUtc } from "./records";
+import { localDateKey } from "./time";
 
 export interface Env {
   readonly DB: D1Database;
@@ -316,6 +318,20 @@ export interface CountryRow {
   readonly forecast: readonly ForecastPoint[];
   /** Local dates ("2026-10-27") on which EPA has issued a UV Alert here. */
   readonly alerts: readonly string[];
+  /** Today's measured readings, as noteMeasured kept them; null where none. */
+  readonly measuredDay: MeasuredDay | null;
+}
+
+/**
+ * One local day of measurements, small enough to ride in city_now: the reading
+ * nearest each whole UTC hour (the instants the forecast and the strip's cells
+ * sit on) and the day's highest, wherever it fell.
+ */
+export interface MeasuredDay {
+  /** The local date, in the city's own zone. */
+  readonly day: string;
+  readonly max: ForecastPoint;
+  readonly hours: readonly ForecastPoint[];
 }
 
 /**
@@ -344,7 +360,7 @@ export async function countryData(
 
   const { results, meta } = await db
     .prepare(
-      `SELECT location_id, measured_uvi, measured_at, measured_source, forecast_json, alerts_json
+      `SELECT location_id, measured_uvi, measured_at, measured_source, measured_day_json, forecast_json, alerts_json
        FROM city_now
        WHERE location_id IN (${placeholders})`,
     )
@@ -354,6 +370,7 @@ export async function countryData(
       measured_uvi: number | null;
       measured_at: string | null;
       measured_source: string | null;
+      measured_day_json: string | null;
       forecast_json: string | null;
       alerts_json: string | null;
     }>();
@@ -381,6 +398,7 @@ export async function countryData(
       latest,
       forecast: parseForecast(row?.forecast_json ?? null),
       alerts: parseDates(row?.alerts_json ?? null),
+      measuredDay: parseMeasuredDay(row?.measured_day_json ?? null),
     });
   }
   return out;
@@ -411,6 +429,57 @@ function parseForecast(json: string | null): ForecastPoint[] {
   }
 }
 
+/** The stored day of measurements. Malformed yields none, as above. */
+function parseMeasuredDay(json: string | null): MeasuredDay | null {
+  if (!json) return null;
+  try {
+    const raw = JSON.parse(json) as { d?: unknown; max?: unknown; h?: unknown };
+    const max = parseForecast(JSON.stringify([raw.max]))[0];
+    if (typeof raw.d !== "string" || !max) return null;
+    return { day: raw.d, max, hours: parseForecast(JSON.stringify(raw.h ?? [])) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fold a city's new readings into its day of measurements. A new local day
+ * starts empty; within a day each hour keeps the reading nearest it, and the
+ * highest reading is kept whenever it fell.
+ */
+export function foldMeasuredDay(
+  prior: MeasuredDay | null,
+  readings: readonly ForecastPoint[],
+  tz: string,
+): MeasuredDay | null {
+  let day = prior;
+  for (const r of [...readings].sort((a, b) => a.validAt.localeCompare(b.validAt))) {
+    const key = localDateKey(r.validAt, tz);
+    if (!day || key > day.day) day = { day: key, max: r, hours: [] };
+    else if (key < day.day) continue;
+    const t = Date.parse(r.validAt);
+    const hour = Math.round(t / 3_600_000) * 3_600_000;
+    const off = (p: ForecastPoint) => Math.abs(Date.parse(p.validAt) - hour);
+    const i = day.hours.findIndex((p) => Math.round(Date.parse(p.validAt) / 3_600_000) * 3_600_000 === hour);
+    const hours =
+      i === -1
+        ? [...day.hours, r].sort((a, b) => a.validAt.localeCompare(b.validAt))
+        : off(r) < off(day.hours[i]!)
+          ? day.hours.map((p, j) => (j === i ? r : p))
+          : day.hours;
+    day = { day: day.day, max: r.uvi > day.max.uvi ? r : day.max, hours };
+  }
+  return day;
+}
+
+function serialiseMeasuredDay(day: MeasuredDay): string {
+  return JSON.stringify({
+    d: day.day,
+    max: [day.max.validAt, day.max.uvi],
+    h: day.hours.map((p) => [p.validAt, p.uvi]),
+  });
+}
+
 /** The stored alert dates. Malformed yields none, for the same reason as above. */
 function parseDates(json: string | null): string[] {
   if (!json) return [];
@@ -425,8 +494,10 @@ function parseDates(json: string | null): string[] {
 /**
  * Record the newest measured reading per city, from readings already in hand.
  *
- * Called by the ARPANSA cron straight after it stores them, so it costs no
- * reads at all: the reading is never fetched back. It replaced
+ * Called by the ARPANSA cron straight after it stores them, so the reading is
+ * never fetched back. The one read is city_now itself, a row per station by
+ * primary key (13 rows a run, about 3,700 a day), for the day of measurements
+ * each new reading is folded into. It replaced
  * latestMeasured(), which found the newest reading by grouping every measured
  * row ever stored -- a valid indexed SEARCH that passed the plan test and read
  * 2,366 rows a run on 27 October, growing by thirteen every five minutes.
@@ -443,16 +514,37 @@ export async function noteMeasured(db: D1Database, readings: readonly Reading[])
   }
   if (newest.size === 0) return 0;
 
+  const ids = [...newest.keys()];
+  const placeholders = ids.map((_id, i) => `?${i + 1}`).join(",");
+  const { results } = await db
+    .prepare(
+      `SELECT location_id, measured_day_json FROM city_now
+       WHERE location_id IN (${placeholders})`,
+    )
+    .bind(...ids)
+    .all<{ location_id: string; measured_day_json: string | null }>();
+  const prior = new Map(results.map((r) => [r.location_id, parseMeasuredDay(r.measured_day_json)]));
+
   const upsert = db.prepare(
-    `INSERT INTO city_now (location_id, measured_uvi, measured_at, measured_source)
-     VALUES (?1, ?2, ?3, ?4)
+    `INSERT INTO city_now (location_id, measured_uvi, measured_at, measured_source, measured_day_json)
+     VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT (location_id) DO UPDATE SET
        measured_uvi = excluded.measured_uvi,
        measured_at = excluded.measured_at,
-       measured_source = excluded.measured_source
+       measured_source = excluded.measured_source,
+       measured_day_json = excluded.measured_day_json
      WHERE city_now.measured_at IS NULL OR excluded.measured_at > city_now.measured_at`,
   );
-  await db.batch([...newest.values()].map((r) => upsert.bind(r.locationId, r.uvi, r.validAt, r.source)));
+  await db.batch(
+    [...newest.values()].map((r) => {
+      const tz = locationById(r.locationId)?.tz;
+      const mine = readings
+        .filter((x) => x.kind === "measured" && x.locationId === r.locationId)
+        .map((x) => ({ validAt: x.validAt, uvi: x.uvi }));
+      const day = tz ? foldMeasuredDay(prior.get(r.locationId) ?? null, mine, tz) : null;
+      return upsert.bind(r.locationId, r.uvi, r.validAt, r.source, day ? serialiseMeasuredDay(day) : null);
+    }),
+  );
   return newest.size;
 }
 

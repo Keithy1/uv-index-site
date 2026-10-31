@@ -61,6 +61,8 @@ export interface CityView {
   readonly tomorrowStrip: DayStrip | null;
   /** Who made the strip's values: "Forecast by CAMS". */
   readonly stripCredit: string;
+  /** The higher of today's measured readings and the forecast still to come. */
+  readonly peakToday: { uvi: number; minutes: number; measured: boolean } | null;
   /** Monthly normals for "this time of year", or null where there are none. */
   readonly normals: CityNormals | null;
   /** The current month, 1-12, in the city's own zone. */
@@ -74,7 +76,7 @@ const PAGE_CSS = `
 .top{display:grid;grid-template-columns:minmax(0,1fr);column-gap:var(--s-6)}
 @media (min-width:900px){.top{grid-template-columns:minmax(0,1fr) minmax(0,1fr);
 grid-template-areas:"now todo" "strip strip"}.top>.now{grid-area:now}
-.top>.strip{grid-area:strip}.top>.todo{grid-area:todo}.todo h2{margin-top:var(--s-4)}}
+.top>.strip,.top>.strip-sec{grid-area:strip}.top>.todo{grid-area:todo}.todo h2{margin-top:var(--s-4)}}
 /* The reading is the one panel on the page, in Cloud. The chart, the map and
    the lists below it sit on the page itself (audit finding G2). */
 .reading{margin:var(--s-4) 0 var(--s-2);background:var(--cloud);border-radius:4px;padding:var(--s-4)}
@@ -430,7 +432,20 @@ export function CityPage(view: CityView) {
         </section>
 
         {showStrip(view.strip) ? (
-          <DayStripView strip={view.strip!} credit={view.stripCredit} />
+          <div class="strip-sec">
+            <DayStripView strip={view.strip!} credit={view.stripCredit} measuredBy={view.measured ? "ARPANSA" : undefined} />
+            {view.peakToday && (
+              <p class="peaktoday">
+                Peak today <strong>{formatUvi(view.peakToday.uvi)}</strong>{" "}
+                <span class="band" style={`background:${bandFor(view.peakToday.uvi).bg};color:${bandFor(view.peakToday.uvi).fg}`}>
+                  {bandFor(view.peakToday.uvi).name}
+                </span>
+                {view.peakToday.measured
+                  ? `, measured by ARPANSA at ${minutesToClock(view.peakToday.minutes)}.`
+                  : `, forecast around ${minutesToClock(view.peakToday.minutes)}.`}
+              </p>
+            )}
+          </div>
         ) : (
           window && (
             // No strip to bracket (no forecast for today yet), but the
