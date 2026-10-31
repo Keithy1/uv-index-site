@@ -228,9 +228,22 @@ describe("dayStrip: measured hours", () => {
     expect(ten.uvi).toBe(Math.round((bell()[10]!.uvi + 1) * 10) / 10);
   });
 
-  it("gives the current hour the latest reading, so it matches the page's number", () => {
-    const now = at1120().cells.find((c) => c.now)!;
-    expect(now).toMatchObject({ uvi: 8.6, measured: true, band: 3 });
+  it("gives the current hour the latest reading when nothing higher came before it", () => {
+    const s = dayStrip({
+      points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 24,
+      measured: readings.filter((p) => p.minutes < 10 * 60 + 30), latest,
+    })!;
+    expect(s.cells.find((c) => c.now)).toMatchObject({ uvi: 8.6, measured: true, band: 3 });
+  });
+
+  it("gives the current hour its highest reading so far, so the day's peak stays on the strip", () => {
+    // Melbourne, 31 October: 7.9 at 1:34 pm, 2.0 at 2:04, both in the 2 pm cell.
+    const s = dayStrip({
+      points: bell(), sun: SUN, window: null, nowMinutes: 14 * 60 + 7,
+      measured: [{ minutes: 13 * 60 + 34, uvi: 7.9 }, { minutes: 14 * 60 + 4, uvi: 2.0 }],
+      latest: { minutes: 14 * 60 + 4, uvi: 2.0 },
+    })!;
+    expect(s.cells.find((c) => c.now)).toMatchObject({ minutes: 14 * 60, uvi: 7.9, measured: true });
   });
 
   it("leaves the hours ahead as forecast", () => {
