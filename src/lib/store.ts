@@ -221,8 +221,22 @@ export interface SeriesPoint {
   readonly validAt: string;
   readonly uvi: number;
   readonly source: string;
-  /** When the forecast run was issued. Null for measurements. */
+  /** When the forecast run was issued. Null for measurements, and for EPA, whose feed gives none. */
   readonly issuedAt?: string | null;
+}
+
+/**
+ * When a source was last fetched successfully, for a forecast whose feed
+ * states no issue time (EPA). One row by primary key. Taken from here rather
+ * than readings.fetched_at, which readings_window does not cover: selecting it
+ * would turn every row of a city page's window into a table lookup.
+ */
+export async function sourceFetchedAt(db: D1Database, source: string): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT last_ok_at FROM source_health WHERE source = ?1")
+    .bind(source)
+    .first<{ last_ok_at: string | null }>();
+  return row?.last_ok_at ?? null;
 }
 
 export interface CityData {

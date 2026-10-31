@@ -52,6 +52,7 @@ import {
   forecastsStale,
   noteDispatch,
   noteMeasured,
+  sourceFetchedAt,
   pruneReadings,
   readHealth,
   rebuildForecasts,
@@ -62,7 +63,7 @@ import {
 import { normalsFor } from "./lib/normals";
 import { localDateKey, localMinutes } from "./lib/time";
 import * as arpansa from "./sources/arpansa";
-import { CityPage } from "./views/CityPage";
+import { CityPage, type ForecastSource } from "./views/CityPage";
 import type { CityRow } from "./views/CountryPage";
 import { CountryPage } from "./views/CountryPage";
 import * as mapAu from "./lib/map-au";
@@ -630,15 +631,22 @@ app.get("/:country/:slug/", async (c) => {
     ...(makers.has("cams") || !makers.has("epa") ? ["CAMS"] : []),
   ].join(" and ")}`;
 
-  // The newest run behind today's curve. issued_at is only rewritten when a
-  // value changes, so an hour a later run left alone keeps its older date;
-  // the newest across the day is the run the curve is from.
-  const forecastIssued =
-    data.forecastToday
-      .filter((p) => onDay(p.validAt) && p.issuedAt)
-      .map((p) => p.issuedAt!)
-      .sort()
-      .pop() ?? null;
+  // Each source behind today's curve, with its own time. CAMS: the newest run,
+  // by issued_at -- only rewritten when a value changes, so an hour a later run
+  // left alone keeps its older date, and the newest across the day is the run.
+  // EPA states no issue time, so it is dated by our last successful fetch.
+  const todaysForecast = data.forecastToday.filter((p) => onDay(p.validAt));
+  const camsRun = todaysForecast
+    .filter((p) => p.source === "cams" && p.issuedAt)
+    .map((p) => p.issuedAt!)
+    .sort()
+    .pop();
+  const forecastSources: ForecastSource[] = [
+    ...(todaysForecast.some((p) => p.source === "epa")
+      ? [{ source: "epa" as const, at: await sourceFetchedAt(c.env.DB, "epa") }]
+      : []),
+    ...(camsRun ? [{ source: "cams" as const, at: camsRun }] : []),
+  ];
 
   // Where there is no instrument the "reading" is the forecast for this hour,
   // and the page says so rather than calling it a measurement.
@@ -693,7 +701,7 @@ app.get("/:country/:slug/", async (c) => {
       tomorrowStrip={tomorrowStrip}
       stripCredit={stripCredit}
       peakToday={todayPeak}
-      forecastIssued={forecastIssued}
+      forecastSources={forecastSources}
     />,
   );
 });
