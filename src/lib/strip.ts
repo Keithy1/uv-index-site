@@ -23,8 +23,13 @@
  * Where an instrument exists, the hours already gone are measured, not
  * forecast: an all-forecast strip beside a reading of 8.6 showed 11 am at 6.5,
  * with the forecast's noon high above both. Each past cell takes the highest
- * reading in its hour; the current hour takes the latest reading, so the
- * outlined cell always agrees with the number at the top of the page.
+ * reading in its hour, and the current hour its highest so far.
+ *
+ * The current hour included, though it can then differ from the number at the
+ * top of the page: Melbourne read 7.9 at 1:34 pm and 2.0 at 2:04, both in the
+ * 1:30 to 2:30 cell. Showing the latest there hid the day's peak, named under
+ * the strip, from the strip itself. The number at the top is now; the cell is
+ * what the hour has asked so far.
  *
  * The highest, not the one nearest the hour: under passing cloud Gold Coast
  * read 4.7 at 9:39 am and 9.4 at 9:49, and a strip sampling on the hour showed
@@ -149,8 +154,11 @@ export function dayStrip(input: StripInput): DayStrip | null {
     // Measured only for time already gone: a reading taken at 11:10 says
     // nothing about 11:30.
     let actual: number | null = null;
-    if (isNow) actual = input.latest?.uvi ?? (minutes <= now! ? measuredAt(readings, minutes) : null);
-    else if (now !== null && minutes + HALF <= now) actual = measuredAt(readings, minutes);
+    if (isNow) {
+      const sofar = measuredAt(readings, minutes);
+      const latest = input.latest?.uvi ?? null;
+      actual = sofar === null ? latest : latest === null ? sofar : Math.max(sofar, latest);
+    } else if (now !== null && minutes + HALF <= now) actual = measuredAt(readings, minutes);
     const uvi = actual ?? valueAt(sorted, minutes);
     cells.push({
       minutes,
