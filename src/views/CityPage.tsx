@@ -27,6 +27,31 @@ import { NORMALS_CSS, ThisTimeOfYear } from "./ThisTimeOfYear";
 import { DAY_STRIP_CSS, DayStripView } from "./DayStrip";
 import type { DayStrip } from "../lib/strip";
 
+/**
+ * A forecast source and its time: for CAMS the model run (issued_at), for EPA,
+ * whose feed states none, our last successful fetch. Null when unknown.
+ */
+export interface ForecastSource {
+  readonly source: "epa" | "cams";
+  readonly at: string | null;
+}
+
+/**
+ * "the US EPA, fetched 8:20 pm EDT 10/30/26" / "CAMS, run of 00:00 UTC 30/10/26".
+ * A CAMS run is named in UTC, as Copernicus names it: in local time the 30
+ * October run is 8 pm on the 29th in Miami, and read as a day old.
+ */
+export function describeSource(s: ForecastSource, tz: string, locale: string): string {
+  if (s.source === "epa") {
+    return s.at
+      ? `the US EPA, fetched ${localTimeWithZone(s.at, tz, locale)} ${localShortDate(s.at, tz, locale)}`
+      : "the US EPA";
+  }
+  if (!s.at) return "CAMS";
+  const hhmm = s.at.slice(11, 16);
+  return `CAMS, run of ${hhmm} UTC ${localShortDate(s.at, "UTC", locale)}`;
+}
+
 export interface CityView {
   readonly location: Location;
   readonly now: Date;
@@ -63,8 +88,8 @@ export interface CityView {
   readonly stripCredit: string;
   /** The higher of today's measured readings and the forecast still to come. */
   readonly peakToday: { uvi: number; minutes: number; measured: boolean } | null;
-  /** When the newest model run behind today's forecast was issued, ISO UTC. */
-  readonly forecastIssued?: string | null;
+  /** Each source behind today's forecast, with its own time. */
+  readonly forecastSources?: readonly ForecastSource[];
   /** Monthly normals for "this time of year", or null where there are none. */
   readonly normals: CityNormals | null;
   /** The current month, 1-12, in the city's own zone. */
@@ -533,10 +558,9 @@ export function CityPage(view: CityView) {
             <h2>Today's forecast</h2>
             {/* Whose forecast and how old: a model run from yesterday reads
                 differently from one an hour old, and the curve alone cannot say. */}
-            {view.hasForecast && view.forecastIssued && (
+            {view.hasForecast && view.forecastSources && view.forecastSources.length > 0 && (
               <p class="small muted issued">
-                {view.stripCredit}, issued {localTimeWithZone(view.forecastIssued, tz, locale)} on{" "}
-                {localShortDate(view.forecastIssued, tz, locale)}
+                Forecast by {view.forecastSources.map((s) => describeSource(s, tz, locale)).join(", and ")}
               </p>
             )}
             <Chart geometry={view.geometry} summary={describeCurve(view.curve)} peak={curvePeak(view.curve)} />

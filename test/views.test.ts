@@ -478,15 +478,24 @@ describe("the strip says which hours were measured and which are forecast", () =
 });
 
 describe("the forecast chart says whose forecast it is and when it was issued", () => {
-  it("names the source and the run's local time and short date", () => {
-    // 00:00Z on 30 October is 8:00 am in Perth (AWST, UTC+8).
-    const h = copy(city(PERTH, true, { forecastIssued: "2026-10-30T00:00:00Z" }));
-    expect(h).toContain("Today's forecast Forecast by CAMS, issued 8:00 am AWST on 30/10/26");
+  it("names a CAMS run in UTC, as Copernicus names it", () => {
+    const h = copy(city(PERTH, true, { forecastSources: [{ source: "cams", at: "2026-10-30T00:00:00Z" }] }));
+    expect(h).toContain("Today's forecast Forecast by CAMS, run of 00:00 UTC 30/10/26");
   });
 
-  it("uses the US order for a US date", () => {
-    const h = copy(city(MIAMI, false, { forecastIssued: "2026-10-30T12:00:00Z" }));
-    expect(h).toMatch(/Forecast by the US EPA and CAMS, issued 8:00 am EDT on 10\/30\/26/);
+  it("dates each US source by its own time: EPA by our fetch, in local time", () => {
+    // The 30 October run is 8 pm on the 29th in Miami; in UTC it keeps its name.
+    const h = copy(
+      city(MIAMI, false, {
+        forecastSources: [
+          { source: "epa", at: "2026-10-31T00:20:52Z" },
+          { source: "cams", at: "2026-10-30T00:00:00Z" },
+        ],
+      }),
+    );
+    expect(h).toContain(
+      "Forecast by the US EPA, fetched 8:20 pm EDT 10/30/26, and CAMS, run of 00:00 UTC 10/30/26",
+    );
   });
 
   it("says nothing when the run is unknown", () => {
