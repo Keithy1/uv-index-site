@@ -90,6 +90,33 @@ export function peakOnLocalDay(
   return points.reduce((a, b) => (b.uvi > a.uvi ? b : a));
 }
 
+/**
+ * Today's peak: the highest of what has been measured so far today and what
+ * is forecast for the rest of it.
+ *
+ * The forecast alone could name a peak below a reading already taken: /au/
+ * once listed Newcastle at 8.2 now and 7.6 for its peak today. Measured wins a
+ * tie, being the better evidence. The forecast must still cover the day, as in
+ * peakOnLocalDay, unless the day's middle is already behind us and measured.
+ */
+export function peakToday(
+  forecast: readonly { minutes: number; uvi: number }[],
+  measuredMax: { minutes: number; uvi: number } | null,
+  nowMinutes: number,
+): { uvi: number; minutes: number; measured: boolean } | null {
+  const whole = peakOnLocalDay(forecast);
+  // Nothing measured (no instrument, or none today): the forecast's whole day,
+  // as before, since there is nothing to replace its past hours with.
+  if (!measuredMax) return whole ? { ...whole, measured: false } : null;
+  const ahead = whole ? forecast.filter((p) => p.minutes > nowMinutes) : [];
+  const forecastPeak = ahead.length > 0 ? ahead.reduce((a, b) => (b.uvi > a.uvi ? b : a)) : null;
+  if (measuredMax && (!forecastPeak || measuredMax.uvi >= forecastPeak.uvi)) {
+    if (!whole && nowMinutes < 16 * 60) return null;
+    return { ...measuredMax, measured: true };
+  }
+  return forecastPeak ? { ...forecastPeak, measured: false } : null;
+}
+
 /** Tomorrow's date key in a city's own zone, given today's. */
 export function nextLocalDay(todayKey: string): string {
   return localDateKey(

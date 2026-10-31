@@ -262,7 +262,7 @@ describe("countryData", () => {
   it("returns a row for every city asked for, data or not", async () => {
     const rows = await countryData(d1(), ["au-per", "us-miami-fl"], NOW);
     expect([...rows.keys()]).toEqual(["au-per", "us-miami-fl"]);
-    expect(rows.get("au-per")).toEqual({ locationId: "au-per", latest: null, forecast: [], alerts: [] });
+    expect(rows.get("au-per")).toEqual({ locationId: "au-per", latest: null, forecast: [], alerts: [], measuredDay: null });
   });
 });
 
@@ -339,5 +339,39 @@ describe("EPA UV Alerts", () => {
     await daily(db, "us-phoenix-az", "2026-10-27", 1, "cams");
     await rebuildForecasts(db, ["us-phoenix-az"], NOW);
     expect((await countryData(db, ["us-phoenix-az"], NOW)).get("us-phoenix-az")!.alerts).toEqual([]);
+  });
+});
+
+describe("the day of measurements in city_now", () => {
+  it("keeps the reading nearest each hour and the day's highest", async () => {
+    // Perth is UTC+8: 03:00Z is 11 am. Runs every five minutes, a batch each.
+    const db = d1();
+    for (const [at, uvi] of [
+      ["2026-10-27T01:58:00Z", 5.0],
+      ["2026-10-27T02:03:00Z", 5.4],
+      ["2026-10-27T02:27:00Z", 9.1],
+      ["2026-10-27T02:58:00Z", 7.2],
+      ["2026-10-27T03:01:00Z", 7.3],
+    ] as const) {
+      await noteMeasured(db, [measured("au-per", at, uvi)]);
+    }
+    const day = (await countryData(db, ["au-per"], NOW)).get("au-per")!.measuredDay!;
+    expect(day.day).toBe("2026-10-27");
+    expect(day.max).toEqual({ validAt: "2026-10-27T02:27:00Z", uvi: 9.1 });
+    expect(day.hours).toEqual([
+      { validAt: "2026-10-27T01:58:00Z", uvi: 5.0 },
+      { validAt: "2026-10-27T03:01:00Z", uvi: 7.3 },
+    ]);
+  });
+
+  it("starts again on a new local day", async () => {
+    const db = d1();
+    await noteMeasured(db, [measured("au-per", "2026-10-26T06:00:00Z", 3.0)]);
+    // 16:00Z on the 26th is midnight on the 27th in Perth.
+    await noteMeasured(db, [measured("au-per", "2026-10-26T16:05:00Z", 0)]);
+    const day = (await countryData(db, ["au-per"], NOW)).get("au-per")!.measuredDay!;
+    expect(day.day).toBe("2026-10-27");
+    expect(day.max.uvi).toBe(0);
+    expect(day.hours).toHaveLength(1);
   });
 });

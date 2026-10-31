@@ -192,7 +192,7 @@ describe("stripAxis and placeOnAxis: one clock for every row on a country page",
 });
 
 describe("cellLevel: what a compact cell draws", () => {
-  const cell = (uvi: number | null) => ({ minutes: 720, uvi, band: null, now: false });
+  const cell = (uvi: number | null) => ({ minutes: 720, uvi, band: null, now: false, measured: false });
 
   it("is the whole number the band comes from", () => {
     expect(cellLevel(cell(2.4))).toBe(2);
@@ -206,5 +206,51 @@ describe("cellLevel: what a compact cell draws", () => {
 
   it("stops at 12, the top of the drawn scale", () => {
     expect(cellLevel(cell(14.2))).toBe(12);
+  });
+});
+
+describe("dayStrip: measured hours", () => {
+  // Readings every five minutes from 6 am to 11:20 am, running a point above
+  // the forecast, as Newcastle did on 31 October.
+  const readings: CurvePoint[] = [];
+  for (let m = 6 * 60; m <= 11 * 60 + 20; m += 5) {
+    const f = bell().find((p) => p.minutes === Math.round(m / 60) * 60)!;
+    readings.push({ minutes: m, uvi: Math.round((f.uvi + 1) * 10) / 10 });
+  }
+  const latest = { minutes: 11 * 60 + 20, uvi: 8.6 };
+  const at1120 = () =>
+    dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 24, measured: readings, latest })!;
+
+  it("takes each hour already gone from the reading at its instant", () => {
+    const s = at1120();
+    const ten = s.cells.find((c) => c.minutes === 10 * 60)!;
+    expect(ten.measured).toBe(true);
+    expect(ten.uvi).toBe(Math.round((bell()[10]!.uvi + 1) * 10) / 10);
+  });
+
+  it("gives the current hour the latest reading, so it matches the page's number", () => {
+    const now = at1120().cells.find((c) => c.now)!;
+    expect(now).toMatchObject({ uvi: 8.6, measured: true, band: 3 });
+  });
+
+  it("leaves the hours ahead as forecast", () => {
+    const s = at1120();
+    for (const c of s.cells.filter((c) => c.minutes > 11 * 60)) expect(c.measured).toBe(false);
+    expect(s.measuredCells).toBe(6);
+    expect(s.summary).toContain("Measured to 11:00 am, forecast after.");
+  });
+
+  it("falls back to the forecast for an hour with no reading near it", () => {
+    const gap = readings.filter((p) => Math.abs(p.minutes - 8 * 60) > 15);
+    const s = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 24, measured: gap, latest })!;
+    const eight = s.cells.find((c) => c.minutes === 8 * 60)!;
+    expect(eight.measured).toBe(false);
+    expect(eight.uvi).toBe(bell()[8]!.uvi);
+    expect(s.measuredCells).toBe(2);
+  });
+
+  it("measures nothing without a now: tomorrow is all forecast", () => {
+    const s = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: null, measured: readings, latest })!;
+    expect(s.cells.every((c) => !c.measured)).toBe(true);
   });
 });

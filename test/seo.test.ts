@@ -39,6 +39,7 @@ function view(location: typeof AU, measured: boolean): CityView {
     strip: null,
     tomorrowStrip: null,
     stripCredit: "Forecast by CAMS",
+    peakToday: null,
   };
 }
 

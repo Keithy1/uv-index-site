@@ -410,8 +410,12 @@ function viewsFor(rows: readonly CityRow[], measured: boolean): View[] {
     views.push({
       id: "peak",
       label: "Peak today",
-      caption: "The map shows the highest level forecast for today, in each city's own day.",
-      heading: "Peak today, forecast",
+      // Where there is an instrument the peak is the higher of what has been
+      // measured today and what is still forecast, so it is never below "now".
+      caption: measured
+        ? "The map shows today's highest level, measured so far or forecast to come, in each city's own day."
+        : "The map shows the highest level forecast for today, in each city's own day.",
+      heading: measured ? "Peak today, measured or forecast" : "Peak today, forecast",
       value: (r) => r.peak,
     });
   }
@@ -516,7 +520,9 @@ function CityList({
             ))}
             {axis && (
               <th scope="col" class="s">
-                <span class="s-today">Today hour by hour, {stripCredit}</span>
+                <span class="s-today">
+                  Today hour by hour, {measured ? `measured by ARPANSA up to now, then ${stripCredit}` : stripCredit}
+                </span>
                 {ids.has("tomorrow") && <span class="s-tomorrow">Tomorrow hour by hour, {stripCredit}</span>}
                 <AxisLabels axis={axis} />
               </th>

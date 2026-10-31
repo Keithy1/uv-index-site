@@ -19,6 +19,12 @@
  * placed on the clock hour instead were blends of two forecasts, and the
  * strip's peak came out lower than the page's own (6.4 at 2 pm beside 6.7 at
  * 2:30 pm, for Adelaide). Half-hour cells would print values nobody forecast.
+ *
+ * Where an instrument exists, the hours already gone are measured, not
+ * forecast: an all-forecast strip beside a reading of 8.6 showed 11 am at 6.5,
+ * with the forecast's noon high above both. Each past cell takes the reading
+ * nearest its instant; the current hour takes the latest reading, so the
+ * outlined cell always agrees with the number at the top of the page.
  */
 import type { CurvePoint } from "./chart";
 import { minutesToClock } from "./time";
@@ -33,6 +39,8 @@ export interface StripCell {
   readonly band: number | null;
   /** True for the one cell whose hour contains now. */
   readonly now: boolean;
+  /** True when the value was measured, false when it is a forecast. */
+  readonly measured: boolean;
 }
 
 export interface DayStrip {
@@ -49,6 +57,8 @@ export interface DayStrip {
   readonly peak: { minutes: number; uvi: number } | null;
   /** How many cells have no value. */
   readonly missing: number;
+  /** How many cells, from the left, are measured rather than forecast. */
+  readonly measuredCells: number;
   /** The strip in words, for anyone who cannot see it. */
   readonly summary: string;
 }
@@ -63,12 +73,31 @@ export interface StripInput {
   readonly nowMinutes: number | null;
   /** How the summary opens: "Today", "Tomorrow". */
   readonly label?: string;
+  /** Today's measured readings, as local minutes. Only used with nowMinutes. */
+  readonly measured?: readonly CurvePoint[];
+  /** The latest reading, when it is fresh: the current hour's value. */
+  readonly latest?: CurvePoint | null;
 }
 
 const HOUR = 60;
 const HALF = 30;
 /** A forecast instant within this of a cell's middle is that cell's value. */
 const EXACT = 5;
+/**
+ * A reading within this of a cell's middle stands for that hour. The cron
+ * samples ARPANSA every five minutes, so the nearest is normally within three;
+ * past a quarter of an hour it belongs to another part of the hour.
+ */
+export const NEAR = 15;
+
+function measuredAt(points: readonly CurvePoint[], minutes: number): number | null {
+  let best: CurvePoint | null = null;
+  for (const p of points) {
+    const d = Math.abs(p.minutes - minutes);
+    if (d <= NEAR && (!best || d < Math.abs(best.minutes - minutes))) best = p;
+  }
+  return best ? best.uvi : null;
+}
 
 function valueAt(sorted: readonly CurvePoint[], minutes: number): number | null {
   let before: CurvePoint | null = null;
@@ -111,18 +140,28 @@ export function dayStrip(input: StripInput): DayStrip | null {
   if (last < first) return null;
 
   const sorted = [...input.points].sort((a, b) => a.minutes - b.minutes);
+  const readings = input.measured ?? [];
   const now = input.nowMinutes;
   const cells: StripCell[] = [];
   for (let h = first; h <= last; h++) {
     const minutes = h * HOUR + phase;
-    const uvi = valueAt(sorted, minutes);
+    const isNow = now !== null && now >= minutes - HALF && now < minutes + HALF;
+    // Measured only for time already gone: a reading taken at 11:10 says
+    // nothing about 11:30.
+    let actual: number | null = null;
+    if (isNow) actual = input.latest?.uvi ?? (minutes <= now! ? measuredAt(readings, minutes) : null);
+    else if (now !== null && minutes + HALF <= now) actual = measuredAt(readings, minutes);
+    const uvi = actual ?? valueAt(sorted, minutes);
     cells.push({
       minutes,
       uvi,
       band: uvi === null ? null : BANDS.indexOf(bandFor(uvi)),
-      now: now !== null && now >= minutes - HALF && now < minutes + HALF,
+      now: isNow,
+      measured: actual !== null,
     });
   }
+  const lead = cells.findIndex((c) => !c.measured);
+  const measuredCells = lead === -1 ? cells.length : lead;
 
   const from = first * HOUR + phase - HALF;
   const to = last * HOUR + phase + HALF;
@@ -136,7 +175,16 @@ export function dayStrip(input: StripInput): DayStrip | null {
     missing === 0 ? cells.reduce((a, b) => ((b.uvi ?? 0) > (a.uvi ?? 0) ? b : a)) : null;
   const peak = peakCell ? { minutes: peakCell.minutes, uvi: peakCell.uvi! } : null;
 
-  return { cells, from, to, window, peak, missing, summary: describe(input.label ?? "Today", cells, peak, window) };
+  return {
+    cells,
+    from,
+    to,
+    window,
+    peak,
+    missing,
+    measuredCells,
+    summary: describe(input.label ?? "Today", cells, peak, window, measuredCells),
+  };
 }
 
 function describe(
@@ -144,6 +192,7 @@ function describe(
   cells: readonly StripCell[],
   peak: DayStrip["peak"],
   window: DayStrip["window"],
+  measuredCells: number,
 ): string {
   const parts = [
     `${label}, hour by hour from ${minutesToClock(cells[0]!.minutes)} to ${minutesToClock(cells[cells.length - 1]!.minutes)}`,
@@ -151,6 +200,9 @@ function describe(
   if (peak) parts.push(`peak ${formatUvi(peak.uvi)} ${bandFor(peak.uvi).name} at ${minutesToClock(peak.minutes)}`);
   if (window) parts.push(`cover up ${minutesToClock(window.start)} to ${minutesToClock(window.end)}`);
   let text = `${parts.join(": ")}.`;
+  if (measuredCells > 0) {
+    text += ` Measured to ${minutesToClock(cells[measuredCells - 1]!.minutes)}, forecast after.`;
+  }
 
   const present = cells.filter((c) => c.uvi !== null);
   if (present.length === 0) return `${text} No forecast for any of it yet.`;

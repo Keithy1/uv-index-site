@@ -6,6 +6,7 @@ import {
   NEAR_HOUR_MS,
   nextLocalDay,
   peakOnLocalDay,
+  peakToday,
   pointsOnLocalDay,
 } from "../src/lib/current";
 import { bandFor, roundForBand } from "../src/lib/uv";
@@ -256,5 +257,39 @@ describe("adviceLevel", () => {
 
   it("returns nothing when there is nothing to go on", () => {
     expect(adviceLevel({ now: null, today: [], tomorrowPeak: null, nowMinutes: 600 })).toBeNull();
+  });
+});
+
+describe("peakToday", () => {
+  // Forecast 7.6 at noon; the instrument had 8.6 at 11:24.
+  const forecast = Array.from({ length: 16 }, (_, i) => {
+    const h = i + 5;
+    return { minutes: h * 60, uvi: Math.round(Math.max(0, 7.6 * (1 - (Math.abs(h - 12) / 7) ** 2)) * 10) / 10 };
+  });
+  const morning = { minutes: 11 * 60 + 24, uvi: 8.6 };
+
+  it("is never below a reading already taken today", () => {
+    expect(peakToday(forecast, morning, 11 * 60 + 25)).toEqual({ ...morning, measured: true });
+  });
+
+  it("is the forecast still to come when that is higher", () => {
+    expect(peakToday(forecast, { minutes: 9 * 60, uvi: 4.0 }, 9 * 60 + 5)).toEqual({
+      minutes: 12 * 60,
+      uvi: 7.6,
+      measured: false,
+    });
+  });
+
+  it("ignores forecast hours already gone, which the readings replace", () => {
+    // At 3 pm the forecast's noon 7.6 is history; the measured 6.0 is what happened.
+    expect(peakToday(forecast, { minutes: 12 * 60, uvi: 6.0 }, 15 * 60)).toMatchObject({ uvi: 6.0, measured: true });
+  });
+
+  it("is the forecast's whole day where nothing has been measured", () => {
+    expect(peakToday(forecast, null, 15 * 60)).toEqual({ minutes: 12 * 60, uvi: 7.6, measured: false });
+  });
+
+  it("names no peak in the morning when the forecast does not cover the day", () => {
+    expect(peakToday(forecast.filter((p) => p.minutes >= 13 * 60), morning, 11 * 60 + 25)).toBeNull();
   });
 });
