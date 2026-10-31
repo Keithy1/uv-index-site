@@ -476,3 +476,20 @@ describe("the strip says which hours were measured and which are forecast", () =
     expect(h).not.toContain('class="pm"');
   });
 });
+
+describe("the forecast chart says whose forecast it is and when it was issued", () => {
+  it("names the source and the run's local time and short date", () => {
+    // 00:00Z on 30 October is 8:00 am in Perth (AWST, UTC+8).
+    const h = copy(city(PERTH, true, { forecastIssued: "2026-10-30T00:00:00Z" }));
+    expect(h).toContain("Today's forecast Forecast by CAMS, issued 8:00 am AWST on 30/10/26");
+  });
+
+  it("uses the US order for a US date", () => {
+    const h = copy(city(MIAMI, false, { forecastIssued: "2026-10-30T12:00:00Z" }));
+    expect(h).toMatch(/Forecast by the US EPA and CAMS, issued 8:00 am EDT on 10\/30\/26/);
+  });
+
+  it("says nothing when the run is unknown", () => {
+    expect(city(PERTH, true)).not.toContain('class="small muted issued"');
+  });
+});
