@@ -14,18 +14,18 @@ export function NotFound() {
     <Prose
       title="Page not found"
       heading="That page does not exist"
-      description="The page you asked for does not exist. Live UV readings and forecasts are a click away."
+      description="The page you asked for does not exist. UV readings and forecasts are a click away."
       path="/"
     >
       <p>
         The address may be mistyped, or the page may have moved. Everything on
         this site is one of the pages below.
       </p>
-      <h2>Live UV by country</h2>
+      <h2>UV by country</h2>
       <ul>
         {liveCountries().map((c) => (
           <li key={c.code}>
-            <a href={`/${c.code}/`}>{c.name}</a> — every city's UV now, today's
+            <a href={`/${c.code}/`}>{c.name}</a>: every city's UV now, today's
             peak and tomorrow's forecast
           </li>
         ))}

@@ -80,7 +80,7 @@ export function About() {
 export function Privacy() {
   return (
     <Prose
-      title="Privacy — uvatlas"
+      title="Privacy at uvatlas"
       heading="Privacy"
       description="What uvatlas collects, which is almost nothing: no cookies, no accounts, no tracking."
       path="/privacy/"
@@ -121,7 +121,7 @@ export function Privacy() {
       </p>
       <p>
         The site never asks for precise location, and it never redirects you
-        based on where you are — it only offers.
+        based on where you are. It only offers.
       </p>
 
       <h2>Third parties</h2>
@@ -144,7 +144,7 @@ export function Privacy() {
 export function Terms() {
   return (
     <Prose
-      title="Terms — uvatlas"
+      title="uvatlas terms of use"
       heading="Terms"
       description="Terms of use for uvatlas, including the limits of the data and the ARPANSA disclaimer."
       path="/terms/"
@@ -154,8 +154,8 @@ export function Terms() {
       <p>
         uvatlas provides general information about ultraviolet radiation levels.
         It is not medical advice and is not a substitute for it. Decisions about
-        your health — including sun exposure, skin conditions, and anything
-        affecting your sensitivity to sunlight — should be made with a qualified
+        your health, including sun exposure, skin conditions, and anything
+        affecting your sensitivity to sunlight, should be made with a qualified
         professional.
       </p>
 

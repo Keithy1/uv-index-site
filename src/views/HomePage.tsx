@@ -47,7 +47,7 @@ export interface HomeView {
 }
 
 const PAGE_CSS = `
-.intro{font-size:1.05rem;margin:8px 0}
+.intro{font-size:17px;max-width:66ch;margin:8px 0}
 details.pick{display:inline-block;position:relative}
 details.pick summary{display:inline;cursor:pointer;font-weight:700;color:var(--link);
 text-decoration:underline;text-underline-offset:2px}
@@ -209,8 +209,8 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
 export function HomePage(view: HomeView) {
   const title = "UV Index Today and Tomorrow: Australia and the United States";
   const description =
-    "Live UV index by city, measured and forecast. Pick a country to see current " +
-    "readings, today's curve and sun protection times.";
+    "UV index by city: measured in Australia, forecast in the United States. Pick " +
+    "a country for current levels, today's curve and sun protection times.";
   const coming = COUNTRIES.filter((c) => c.status === "coming");
 
   const structuredData = [
@@ -244,7 +244,7 @@ export function HomePage(view: HomeView) {
           the parser would close the <p> before it. The menu is the header's
           Country menu inline, so the map is not the only way to pick. */}
       <div class="intro">
-        A live UV index map, city by city.{" "}
+        A UV index map, city by city: measured in Australia, forecast in the United States.{" "}
         <details class="pick">
           <summary>Choose a country</summary>
           <ul>
@@ -295,8 +295,8 @@ export function HomePage(view: HomeView) {
                         forecast for it. This used to read "forecast peak
                         today" for the United States, a different figure
                         entirely from the "now" its own country page showed. */}
-                    {h.forecast ? "highest now, forecast" : "highest now"}
-                    {h.cityName ? ` · ${h.cityName}` : ""}
+                    {h.forecast ? "Highest forecast now" : "Highest now"}
+                    {h.cityName ? `, in ${h.cityName}` : ""}
                   </span>
                 </div>
               ) : (

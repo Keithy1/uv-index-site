@@ -70,7 +70,7 @@ describe("a city stands on its own in a title", () => {
     expect(cityLabel(US)).toBe("Portland, OR");
     const h = html(view(US, false));
     expect(title(h)).toContain("Portland, OR");
-    expect(h).toContain("<h1>UV Index Portland, OR today</h1>");
+    expect(h).toContain("<h1>UV index Portland, OR today</h1>");
   });
 
   it("leaves an Australian city alone, where there is only one", () => {
@@ -92,7 +92,7 @@ describe("the head every page carries", () => {
     for (const h of pages) {
       expect((h.match(/<h1[^>]*>/g) ?? []).length).toBe(1);
       const city = h.includes("Portland") ? "Portland, OR" : "Perth";
-      expect(h).toContain(`<h1>UV Index ${city} today</h1>`);
+      expect(h).toContain(`<h1>UV index ${city} today</h1>`);
     }
   });
 
@@ -156,7 +156,8 @@ describe("the forecast timestamp", () => {
     // Read from another zone, "Forecast for 6:00 PM PDT on Monday, October 26"
     // looked like a stale date, or the time the forecast was issued.
     const h = html(view(US, false)).replace(/<!--.*?-->/gs, "");
-    expect(h).toMatch(/Hourly forecast for [^<]+, the current hour in Portland \(/);
+    // The credit now sits inside the reading: who forecast it, and for when.
+    expect(h).toMatch(/Forecast by the US EPA and CAMS for [^<]+, the current hour in Portland/);
   });
 });
 
@@ -169,12 +170,21 @@ describe("the searches each page is for", () => {
     expect(title.toLowerCase().startsWith("uv index today")).toBe(true);
     expect(title.toLowerCase()).toContain("tomorrow");
     expect(title.length).toBeLessThanOrEqual(65);
-    expect(countryHeading("United States", false)).toBe("UV index today across the United States");
+    expect(countryHeading("United States", false)).toBe("UV index today and tomorrow in the United States");
   });
 
   it("keeps the country's name first where readings are measured", () => {
     expect(countryTitle("Australia", true)).toMatch(/^UV Index Australia/);
-    expect(countryHeading("Australia", true)).toBe("UV Index Australia");
+    expect(countryHeading("Australia", true)).toBe("UV index Australia today and tomorrow");
+  });
+
+  it("gives a country page an H1 in the title's own words, sentence case", () => {
+    // docs/seo.md: one H1, and it matches the title. /au/ said "UV Index
+    // Australia" under a title about today and tomorrow in every city.
+    for (const [name, measured] of [["Australia", true], ["United States", false]] as const) {
+      const t = countryTitle(name, measured).replace(/: Every City$/, "");
+      expect(countryHeading(name, measured).toLowerCase()).toBe(t.toLowerCase());
+    }
   });
 
   it("puts 'the' before a United country, in prose", () => {

@@ -81,7 +81,7 @@ export function Methods() {
       <h2>How accurate the forecast is</h2>
       <p>
         We compared the forecast against what ARPANSA actually measured, across
-        all {a.stations} Australian stations in {a.period} — {a.hours.toLocaleString("en-GB")}{" "}
+        all {a.stations} Australian stations in {a.period}: {a.hours.toLocaleString("en-GB")}{" "}
         paired daylight hours.
       </p>
       <table>
@@ -122,7 +122,7 @@ export function Methods() {
       <h2>Sun protection times</h2>
       <p>
         These are the hours the UV index is forecast to reach 3 or above, and
-        they are calculated from the <strong>clear-sky</strong> forecast — the
+        they are calculated from the <strong>clear-sky</strong> forecast, the
         level if no cloud were present.
       </p>
       <p>
@@ -160,14 +160,14 @@ export function Methods() {
         another city's.
       </p>
       <p>
-        A month is published only with at least 60 valid days behind it — about
+        A month is published only with at least 60 valid days behind it, about
         two years' worth. The counts use the same rounding as the bands below.
       </p>
 
       <h2>Bands</h2>
       <p>
         Readings are shown exactly as published, to one decimal place. The band
-        — Low, Moderate, High, Very High, Extreme — comes from the reading
+        (Low, Moderate, High, Very High or Extreme) comes from the reading
         rounded to the nearest whole number, so 2.4 is Low and 2.5 is Moderate.
         The bands are the World Health Organization's.
       </p>

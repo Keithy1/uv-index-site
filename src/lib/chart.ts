@@ -10,7 +10,11 @@
  * render it — a shape alone is unreadable to a screen reader and to anyone who
  * cannot distinguish the band colours.
  */
+import { minutesToClock } from "./time";
 import { PROTECTION_THRESHOLD, formatUvi } from "./uv";
+
+// Re-exported: the chart was its first home, and the views still import it here.
+export { minutesToClock };
 
 export interface CurvePoint {
   /** Minutes since local midnight, 0-1439. */
@@ -35,6 +39,8 @@ export interface ChartGeometry {
    * cannot be read as a measurement the city does not have.
    */
   readonly now: { x: number } | null;
+  /** Each drawn forecast point, positioned, for per-hour tooltips and the table. */
+  readonly points: readonly { x: number; y: number; uvi: number; minutes: number }[];
   /** Hour gridlines, already positioned. */
   readonly hours: readonly { x: number; label: string }[];
   /** Labelled UV levels up the left edge, already positioned. */
@@ -45,8 +51,10 @@ export interface ChartGeometry {
 }
 
 const WIDTH = 640;
+/** Exported so a view can crop the left margin off and put its own labels there. */
+export const CHART_PAD_LEFT = 28;
 const HEIGHT = 200;
-const PAD_LEFT = 28;
+const PAD_LEFT = CHART_PAD_LEFT;
 const PAD_RIGHT = 12;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 24;
@@ -118,6 +126,7 @@ export function buildCurve(
       nowMinutes !== null && nowMinutes >= START_MINUTES && nowMinutes <= END_MINUTES
         ? { x: x(nowMinutes) }
         : null,
+    points: visible.map((p) => ({ x: x(p.minutes), y: y(p.uvi), uvi: p.uvi, minutes: p.minutes })),
     hours,
     peak: { x: x(peakPoint.minutes), y: y(peakPoint.uvi), uvi: peakPoint.uvi, minutes: peakPoint.minutes },
     maxUvi,
@@ -138,14 +147,6 @@ export function axisLevels(maxUvi: number): number[] {
   const levels = [0, 3, 6, 8, 11].filter((v) => v <= maxUvi);
   if (maxUvi - levels[levels.length - 1]! >= 2) levels.push(maxUvi);
   return levels;
-}
-
-/** Minutes since midnight as "12:20 pm", for chart labels and summaries. */
-export function minutesToClock(minutes: number): string {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
-  const hour12 = ((h + 11) % 12) + 1;
-  return `${hour12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
 }
 
 /**
