@@ -630,6 +630,16 @@ app.get("/:country/:slug/", async (c) => {
     ...(makers.has("cams") || !makers.has("epa") ? ["CAMS"] : []),
   ].join(" and ")}`;
 
+  // The newest run behind today's curve. issued_at is only rewritten when a
+  // value changes, so an hour a later run left alone keeps its older date;
+  // the newest across the day is the run the curve is from.
+  const forecastIssued =
+    data.forecastToday
+      .filter((p) => onDay(p.validAt) && p.issuedAt)
+      .map((p) => p.issuedAt!)
+      .sort()
+      .pop() ?? null;
+
   // Where there is no instrument the "reading" is the forecast for this hour,
   // and the page says so rather than calling it a measurement.
   const level = currentLevel({
@@ -683,6 +693,7 @@ app.get("/:country/:slug/", async (c) => {
       tomorrowStrip={tomorrowStrip}
       stripCredit={stripCredit}
       peakToday={todayPeak}
+      forecastIssued={forecastIssued}
     />,
   );
 });

@@ -83,6 +83,11 @@ export function localDate(iso: string, tz: string, locale = "en-AU"): string {
   }).format(new Date(iso));
 }
 
+/** "25/10/26" in Australia, "10/25/26" in the US: the short date each locale reads. */
+export function localShortDate(iso: string, tz: string, locale = "en-AU"): string {
+  return formatter(locale, { timeZone: tz, day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(iso));
+}
+
 /** "2026-10-25" in the location's own zone — the key `daily` rows use. */
 export function localDateKey(iso: string, tz: string): string {
   const parts = formatter("en-CA", {

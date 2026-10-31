@@ -19,7 +19,7 @@ import type { Location } from "../lib/locations";
 import { cityLabel, locationsIn } from "../lib/locations";
 import type { ChartGeometry, CurvePoint } from "../lib/chart";
 import { CHART_PAD_LEFT, curvePeak, describeCurve, LOW_CLOUD_NOTE, minutesToClock, protectionWindow } from "../lib/chart";
-import { howLongAgo, localDate, localeFor, localTimeWithZone } from "../lib/time";
+import { howLongAgo, localDate, localeFor, localShortDate, localTimeWithZone } from "../lib/time";
 import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
 import type { CityNormals } from "../lib/normals";
 import { Layout, ORIGIN } from "./Layout";
@@ -63,6 +63,8 @@ export interface CityView {
   readonly stripCredit: string;
   /** The higher of today's measured readings and the forecast still to come. */
   readonly peakToday: { uvi: number; minutes: number; measured: boolean } | null;
+  /** When the newest model run behind today's forecast was issued, ISO UTC. */
+  readonly forecastIssued?: string | null;
   /** Monthly normals for "this time of year", or null where there are none. */
   readonly normals: CityNormals | null;
   /** The current month, 1-12, in the city's own zone. */
@@ -529,6 +531,14 @@ export function CityPage(view: CityView) {
         {view.geometry && (
           <section class="chart">
             <h2>Today's forecast</h2>
+            {/* Whose forecast and how old: a model run from yesterday reads
+                differently from one an hour old, and the curve alone cannot say. */}
+            {view.hasForecast && view.forecastIssued && (
+              <p class="small muted issued">
+                {view.stripCredit}, issued {localTimeWithZone(view.forecastIssued, tz, locale)} on{" "}
+                {localShortDate(view.forecastIssued, tz, locale)}
+              </p>
+            )}
             <Chart geometry={view.geometry} summary={describeCurve(view.curve)} peak={curvePeak(view.curve)} />
           </section>
         )}
