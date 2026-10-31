@@ -29,6 +29,8 @@ const FILE_PATHS = new Set([
   "/logo.jpg",
   "/mark.webp",
   "/apple-touch-icon.png",
+  "/atkinson-hyperlegible-next-v7.woff2",
+  "/atkinson-hyperlegible-next-OFL.txt",
 ]);
 
 function isFilePath(path: string): boolean {

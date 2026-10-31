@@ -11,6 +11,7 @@
 import { Hono } from "hono";
 
 import { FAVICON_BYTES, FAVICON_PATH, TOUCH_ICON_BYTES, TOUCH_ICON_PATH } from "./assets/icons";
+import { FONT_BYTES, FONT_LICENCE, FONT_LICENCE_PATH, FONT_PATH } from "./assets/font";
 import {
   LOGO_BYTES,
   LOGO_PATH,
@@ -20,7 +21,9 @@ import {
   OG_IMAGE_PATH,
 } from "./assets/brand";
 
-import { buildCurve } from "./lib/chart";
+import { buildCurve, protectionWindow } from "./lib/chart";
+import { dayStrip } from "./lib/strip";
+import { sunTimes } from "./lib/sun";
 import {
   adviceLevel,
   currentLevel,
@@ -394,6 +397,9 @@ for (const [path, bytes, type] of [
   [MARK_PATH, MARK_BYTES, "image/webp"],
   [FAVICON_PATH, FAVICON_BYTES, "image/x-icon"],
   [TOUCH_ICON_PATH, TOUCH_ICON_BYTES, "image/png"],
+  // The typeface, and the licence the OFL asks to travel with it.
+  [FONT_PATH, FONT_BYTES, "font/woff2"],
+  [FONT_LICENCE_PATH, new TextEncoder().encode(FONT_LICENCE), "text/plain; charset=utf-8"],
 ] as const) {
   app.get(path, () => new Response(bytes, {
     headers: { "Content-Type": type, "Cache-Control": "public, max-age=31536000, immutable" },
@@ -559,6 +565,37 @@ app.get("/:country/:slug/", async (c) => {
   );
   const nowMinutes = localMinutes(now.toISOString(), location.tz);
 
+  // The day strips, from data already in hand: no further read. Clear sky is
+  // cut to each local day before protectionWindow sees it. The window holds
+  // three days, and in minutes since midnight they lie on top of one another,
+  // so yesterday's morning could stand in for a today whose forecast starts at
+  // 11 am -- the partial-data answer protectionWindow exists to refuse.
+  const tomorrowKey = nextLocalDay(today);
+  const onTomorrow = (iso: string) => localDateKey(iso, location.tz) === tomorrowKey;
+  const clearToday = data.clearSkyToday.filter((p) => onDay(p.validAt)).map(toPoint);
+  const strip = dayStrip({
+    points: curve,
+    sun: sunTimes(location.lat, location.lon, today, location.tz),
+    window: protectionWindow(clearToday),
+    nowMinutes,
+  });
+  const tomorrowStrip = dayStrip({
+    points: data.forecastToday.filter((p) => onTomorrow(p.validAt)).map(toPoint),
+    sun: sunTimes(location.lat, location.lon, tomorrowKey, location.tz),
+    window: protectionWindow(data.clearSkyToday.filter((p) => onTomorrow(p.validAt)).map(toPoint)),
+    nowMinutes: null,
+    label: "Tomorrow",
+  });
+  // Credit whoever made the values in the cells: in the US the higher of the
+  // EPA's and CAMS's forecast is kept for each hour, so either may appear.
+  const makers = new Set(
+    data.forecastToday.filter((p) => onDay(p.validAt) || onTomorrow(p.validAt)).map((p) => p.source),
+  );
+  const stripCredit = `Forecast by ${[
+    ...(makers.has("epa") ? ["the US EPA"] : []),
+    ...(makers.has("cams") || !makers.has("epa") ? ["CAMS"] : []),
+  ].join(" and ")}`;
+
   // Where there is no instrument the "reading" is the forecast for this hour,
   // and the page says so rather than calling it a measurement.
   const level = currentLevel({
@@ -599,7 +636,7 @@ app.get("/:country/:slug/", async (c) => {
       measured={page.measured}
       credit={page.credit}
       curve={series}
-      clearSky={data.clearSkyToday.map(toPoint)}
+      clearSky={clearToday}
       // The Now line only where nothing measured marks the moment: a US city
       // has no instrument, so its chart had no sign of where the day had got to.
       geometry={buildCurve(series, latestPoint, page.measured ? null : nowMinutes)}
@@ -608,6 +645,9 @@ app.get("/:country/:slug/", async (c) => {
       advice={advice}
       normals={normalsFor(location.id)}
       month={Number(today.slice(5, 7))}
+      strip={strip}
+      tomorrowStrip={tomorrowStrip}
+      stripCredit={stripCredit}
     />,
   );
 });

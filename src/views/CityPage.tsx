@@ -24,6 +24,8 @@ import { bandFor, formatUvi, PROTECTION_THRESHOLD } from "../lib/uv";
 import type { CityNormals } from "../lib/normals";
 import { Layout, ORIGIN } from "./Layout";
 import { NORMALS_CSS, ThisTimeOfYear } from "./ThisTimeOfYear";
+import { DAY_STRIP_CSS, DayStripView } from "./DayStrip";
+import type { DayStrip } from "../lib/strip";
 
 export interface CityView {
   readonly location: Location;
@@ -53,6 +55,12 @@ export interface CityView {
    * its own forecast of 12.1 Extreme later the same day.
    */
   readonly advice: Advice | null;
+  /** Today from sunrise to sunset, hour by hour, or null with no sun times. */
+  readonly strip: DayStrip | null;
+  /** Tomorrow's, drawn small. */
+  readonly tomorrowStrip: DayStrip | null;
+  /** Who made the strip's values: "Forecast by CAMS". */
+  readonly stripCredit: string;
   /** Monthly normals for "this time of year", or null where there are none. */
   readonly normals: CityNormals | null;
   /** The current month, 1-12, in the city's own zone. */
@@ -60,55 +68,67 @@ export interface CityView {
 }
 
 const PAGE_CSS = `
-.reading{display:flex;align-items:center;gap:18px;margin:16px 0 8px;
-background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
-.reading .n{font-size:3.4rem;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;
-letter-spacing:-.03em}
-.band{display:inline-block;white-space:nowrap;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.95rem}
-.peakfig{font-size:1.25rem;color:var(--fg);margin:0 2px}
-.advice{margin:6px 0 0}
-.delayed{border-left:4px solid #d32010;padding-left:12px;margin:12px 0}
-.chartbox{margin:8px 0 0;border:1px solid var(--line);border-radius:12px;padding:8px;
-background:var(--card)}
+/* Reading first, then the day strip, then what to do. From 900 px the reading
+   and the advice sit side by side over a full-width strip; the DOM order stays
+   reading, strip, advice, which is the order on a phone and for a screen reader. */
+.top{display:grid;grid-template-columns:minmax(0,1fr);column-gap:var(--s-6)}
+@media (min-width:900px){.top{grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+grid-template-areas:"now todo" "strip strip"}.top>.now{grid-area:now}
+.top>.strip{grid-area:strip}.top>.todo{grid-area:todo}.todo h2{margin-top:var(--s-4)}}
+/* The reading is the one panel on the page, in Cloud. The chart, the map and
+   the lists below it sit on the page itself (audit finding G2). */
+.reading{margin:var(--s-4) 0 var(--s-2);background:var(--cloud);border-radius:4px;padding:var(--s-4)}
+.reading .row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-2) var(--s-4)}
+.reading .n{font-size:var(--t-reading);line-height:1;font-weight:800;letter-spacing:-.02em}
+.reading .band{font-size:var(--t-2);padding:var(--s-1) var(--s-3)}
+.band{display:inline-block;white-space:nowrap;padding:2px var(--s-2);border-radius:4px;font-weight:700;font-size:var(--t-0)}
+.peakfig{font-size:var(--t-2);color:var(--shade);margin:0 2px}
+.advice{margin:var(--s-3) 0 0}
+.delayed{border-left:4px solid var(--shade);padding-left:var(--s-3);margin:var(--s-3) 0}
+/* Kept for a future ad, at a fixed size, so switching ads on moves nothing.
+   Empty while they are off. Never between a number and its credit. */
+.adslot{min-height:100px;margin:var(--s-5) 0}
+.rest{display:grid;grid-template-columns:minmax(0,1fr);column-gap:var(--s-6)}
+@media (min-width:900px){.rest{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 300px;
+grid-template-areas:"chart chart chart" "tomorrow normals ad" "nearby nearby nearby"}
+.rest>.chart{grid-area:chart}.rest>.tomorrow{grid-area:tomorrow}.rest>.normals-sec{grid-area:normals}
+.rest>.adslot{grid-area:ad;min-height:250px}.rest>.nearby-sec{grid-area:nearby}}
 /* The chart's geometry is SVG, stretched to the box; its words are HTML laid
    over it. A 640-wide viewBox scaled to a 360 px phone set 11-unit labels at
    about 7 px. Text in HTML stays at its own size whatever the chart's width,
    and vector-effect keeps the strokes from stretching with it. Positions are
    percentages of the plot, taken from the same geometry as the paths. */
+.chartbox{margin:var(--s-2) 0 0;padding:var(--s-2) 0}
 .plot{position:relative;height:200px;margin:4px 4px 0 32px}
 .plot svg{display:block;width:100%;height:100%;overflow:visible}
-.plot .hl{position:absolute;bottom:0;transform:translateX(-50%);font-size:.8125rem;
-line-height:1;color:var(--muted);white-space:nowrap}
+.plot .hl{position:absolute;bottom:0;transform:translateX(-50%);font-size:var(--t-0);
+line-height:1;color:var(--haze);white-space:nowrap}
 .plot .lv{position:absolute;left:-30px;width:24px;transform:translateY(-50%);text-align:center;
-font-size:.75rem;font-weight:700;line-height:1;padding:2px 0;border-radius:4px}
-.plot .nowl{position:absolute;top:0;font-size:.75rem;font-weight:600;line-height:1;color:var(--muted)}
+font-size:12px;font-weight:700;line-height:1;padding:2px 0;border-radius:4px}
+.plot .nowl{position:absolute;top:0;font-size:12px;font-weight:700;line-height:1;color:var(--haze)}
 .plot .dot{position:absolute;width:14px;height:14px;border-radius:50%;
-transform:translate(-50%,-50%);border:2px solid var(--bg)}
+transform:translate(-50%,-50%);border:2px solid var(--sky)}
 @media (min-width:620px){.plot{height:240px}}
-details.table{margin:10px 0}
-details.table summary{cursor:pointer;font-weight:600;color:var(--link)}
-details.table table{border-collapse:collapse;margin:8px 0;min-width:16rem}
-details.table th,details.table td{text-align:left;padding:4px 16px 4px 0;
-border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-details.table thead th{font-size:.875rem;color:var(--muted);font-weight:600}
+details.table{margin:var(--s-3) 0}
+details.table summary{cursor:pointer;font-weight:700;color:var(--zenith)}
+details.table table{border-collapse:collapse;margin:var(--s-2) 0;min-width:16rem;background:var(--cloud)}
+details.table th,details.table td{text-align:left;padding:var(--s-1) var(--s-4) var(--s-1) var(--s-2);
+border-bottom:1px solid var(--horizon)}
+details.table thead th{font-size:var(--t-0);color:var(--haze);font-weight:700}
 details.table tbody th{font-weight:400}
-.window{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:10px 0}
-.window strong{font-size:1.1rem}
-ul.todo{margin:8px 0;padding-left:20px}
-ul.todo li{margin:4px 0}
-.nearby{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;padding:0;list-style:none}
+ul.todo{margin:var(--s-2) 0;padding-left:20px}
+ul.todo li{margin:var(--s-1) 0}
+.nearby{display:flex;gap:var(--s-2) var(--s-4);flex-wrap:wrap;margin:var(--s-2) 0;padding:0;list-style:none}
 /* Where the day has got to, on a chart with no measured dot to show it. Grey
    and dashed, in no band colour, so it reads as a time and not a reading. */
-.nowmark line{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3;opacity:.5}
+.nowmark line{stroke:var(--shade);stroke-width:1;stroke-dasharray:3 3;opacity:.5}
 /* No motion here, on purpose. The curve used to draw itself in, the shading
    fade and the measured dot pop: for most of a second the chart showed a day
    that was not the forecast. Readings never animate. */
-.reading .credit{margin:6px 0 0;font-size:.875rem;color:var(--muted)}
-.nearby a{display:inline-block;padding:6px 12px;border:1px solid var(--line);
-border-radius:999px;text-decoration:none}
-.credits{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
-font-size:.82rem;color:var(--muted)}
-.credits p{margin:4px 0}
+.reading .credit{margin:var(--s-2) 0 0;font-size:var(--t-0);color:var(--haze)}
+.credits{margin-top:var(--s-6);padding-top:var(--s-3);border-top:1px solid var(--horizon);
+font-size:var(--t-0);color:var(--haze)}
+.credits p{margin:var(--s-1) 0}
 `;
 
 /** Band-specific advice. Kept short, and tied to the number, not the colour. */
@@ -143,6 +163,11 @@ function whatToDo(uvi: number): string[] {
   ];
 }
 
+/** A strip with nothing in it says nothing; the page says so in words instead. */
+function showStrip(strip: DayStrip | null): boolean {
+  return strip !== null && strip.missing < strip.cells.length;
+}
+
 /** A geometry position as a percentage of the plot, which starts at the left pad. */
 function pctX(g: ChartGeometry, x: number): string {
   return `${(((x - CHART_PAD_LEFT) / (g.width - CHART_PAD_LEFT)) * 100).toFixed(2)}%`;
@@ -175,13 +200,13 @@ function Chart({ geometry, summary, peak }: { geometry: ChartGeometry; summary: 
           >
             {g.hours.map((h) => (
               <line key={h.label} x1={h.x} y1={top} x2={h.x} y2={bottom}
-                stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke" />
+                stroke="var(--horizon)" stroke-width="1" vector-effect="non-scaling-stroke" />
             ))}
             {/* 3 keeps its dashed rule: it is where protection starts. The
                 other levels get a faint solid line, there to read against. */}
             {g.levels.map((l) => (
               <line key={l.uvi} x1={left} y1={l.y} x2={g.width - 12} y2={l.y}
-                stroke={l.uvi === 3 ? "var(--muted)" : "var(--line)"} stroke-width="1"
+                stroke={l.uvi === 3 ? "var(--haze)" : "var(--horizon)"} stroke-width="1"
                 stroke-dasharray={l.uvi === 3 ? "4 4" : undefined}
                 vector-effect="non-scaling-stroke" />
             ))}
@@ -190,8 +215,8 @@ function Chart({ geometry, summary, peak }: { geometry: ChartGeometry; summary: 
                 <line x1={g.now.x} y1={top} x2={g.now.x} y2={bottom} vector-effect="non-scaling-stroke" />
               </g>
             )}
-            <path class="area" d={g.areaPath} fill="var(--link)" opacity="0.14" />
-            <path class="line" d={g.linePath} fill="none" stroke="var(--link)"
+            <path class="area" d={g.areaPath} fill="var(--zenith)" opacity="0.14" />
+            <path class="line" d={g.linePath} fill="none" stroke="var(--zenith)"
               stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
               vector-effect="non-scaling-stroke" />
             {/* One invisible column per hour, so pointing at the chart names
@@ -331,179 +356,190 @@ export function CityPage(view: CityView) {
       country={loc.country}
       structuredData={structuredData}
     >
-      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + (view.normals ? NORMALS_CSS : "") }} />
+      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + DAY_STRIP_CSS + (view.normals ? NORMALS_CSS : "") }} />
 
       <h1>UV index {label} today</h1>
 
-      {reading ? (
-        <>
-          <div class="reading">
-            <div class="n">{formatUvi(reading.uvi)}</div>
-            <div>
-              {/* Number and word together: colour alone never carries meaning. */}
-              <span class="band" style={`background:${band!.bg};color:${band!.fg}`}>
-                {band!.name}
-              </span>
-              <p class="advice">{band!.advice}</p>
-              {/* The credit is part of the reading, not a footnote to it: who
-                  produced the number, and for when. */}
-              <p class="credit">
-                {view.measured ? (
-                  reading.stale ? (
-                    <>
-                      Last measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
-                      {localDate(reading.validAt, tz, locale)}, {howLongAgo(reading.validAt, now)}
-                    </>
+      <div class="top">
+        <section class="now">
+          {reading ? (
+            <>
+              <div class="reading">
+                <div class="row">
+                  <div class="n">{formatUvi(reading.uvi)}</div>
+                  {/* Number and word together: colour alone never carries meaning. */}
+                  <span class="band" style={`background:${band!.bg};color:${band!.fg}`}>
+                    {band!.name}
+                  </span>
+                </div>
+                <p class="advice">{band!.advice}</p>
+                {/* The credit is part of the reading, not a footnote to it: who
+                    produced the number, and for when. */}
+                <p class="credit">
+                  {view.measured ? (
+                    reading.stale ? (
+                      <>
+                        Last measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
+                        {localDate(reading.validAt, tz, locale)}, {howLongAgo(reading.validAt, now)}
+                      </>
+                    ) : (
+                      <>
+                        Measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)},{" "}
+                        {howLongAgo(reading.validAt, now)}
+                      </>
+                    )
                   ) : (
                     <>
-                      Measured by ARPANSA at {localTimeWithZone(reading.validAt, tz, locale)},{" "}
-                      {howLongAgo(reading.validAt, now)}
+                      {/* Never "measured": there is no US instrument. And say
+                          whose clock it is: "6:00 pm PDT on Monday, October 26",
+                          read in Sydney on Tuesday the 27th, looked like a stale
+                          date; it is the hour nearest now, in this city's time. */}
+                      Forecast by the US EPA and CAMS for {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
+                      {localDate(reading.validAt, tz, locale)}, the current hour in {loc.name}
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {view.measured && reading.stale && (
+                <p class="delayed">
+                  <strong>Live reading delayed.</strong> ARPANSA's {loc.name} station has not
+                  reported recently, so this is the last reading it sent rather than the
+                  level right now.
+                </p>
+              )}
+
+              {reading.uvi < 0.5 && (
+                <p>
+                  UV is effectively zero at {loc.name} right now.
+                  {view.tomorrow
+                    ? ` Tomorrow is forecast to peak at ${formatUvi(view.tomorrow.uvi)} around ${minutesToClock(view.tomorrow.minutes)}.`
+                    : ""}
+                </p>
+              )}
+            </>
+          ) : (
+            <p>
+              {view.measured
+                ? `No measured reading is available for ${loc.name} at the moment. This page updates as soon as ARPANSA's station reports again.`
+                : `No current forecast is available for ${loc.name}. This page updates when the next forecast is published.`}
+            </p>
+          )}
+
+          {loc.stationNote && <p class="small muted">{loc.stationNote}</p>}
+        </section>
+
+        {showStrip(view.strip) ? (
+          <DayStripView strip={view.strip!} credit={view.stripCredit} />
+        ) : (
+          window && (
+            // No strip to bracket (no forecast for today yet), but the
+            // protection window still stands on its own.
+            <p class="strip">
+              <strong>Cover up {minutesToClock(window.start)} to {minutesToClock(window.end)}</strong>{" "}
+              <span class="small muted">
+                when the clear-sky forecast reaches {PROTECTION_THRESHOLD} or above
+              </span>
+            </p>
+          )
+        )}
+
+        {view.advice && (
+          <section class="todo">
+            <h2>
+              {view.advice.scope === "tomorrow"
+                ? "What to do tomorrow"
+                : view.advice.scope === "today"
+                  ? "What to do today"
+                  : "What to do now"}
+            </h2>
+            {/* The level this advice is for, stated, because it is deliberately
+                not the reading at the top of the page. */}
+            <p class="small muted">
+              {view.advice.scope === "tomorrow"
+                ? "Tomorrow is forecast to reach "
+                : view.advice.scope === "today"
+                  ? "UV is forecast to reach "
+                  : "At "}
+              <strong>{formatUvi(view.advice.uvi)}</strong>{" "}
+              <span
+                class="band"
+                style={`background:${bandFor(view.advice.uvi).bg};color:${bandFor(view.advice.uvi).fg}`}
+              >
+                {bandFor(view.advice.uvi).name}
+              </span>
+              {view.advice.scope === "today"
+                ? " later today."
+                : view.advice.peak
+                  ? (
+                    <>
+                      {" now, up to "}
+                      <strong>{formatUvi(view.advice.peak.uvi)}</strong>
+                      {` around ${minutesToClock(view.advice.peak.minutes)}.`}
                     </>
                   )
-                ) : (
-                  <>
-                    {/* Never "measured": there is no US instrument. And say
-                        whose clock it is: "6:00 pm PDT on Monday, October 26",
-                        read in Sydney on Tuesday the 27th, looked like a stale
-                        date; it is the hour nearest now, in this city's time. */}
-                    Forecast by the US EPA and CAMS for {localTimeWithZone(reading.validAt, tz, locale)} on{" "}
-                    {localDate(reading.validAt, tz, locale)}, the current hour in {loc.name}
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {view.measured && reading.stale && (
-            <p class="delayed">
-              <strong>Live reading delayed.</strong> ARPANSA's {loc.name} station has not
-              reported recently, so this is the last reading it sent rather than the
-              level right now.
+                  : "."}
             </p>
-          )}
+            <ul class="todo">
+              {whatToDo(view.advice.uvi).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p class="small">
+              <a href="/uv-index-explained/">What the UV index numbers mean</a>
+            </p>
+          </section>
+        )}
+      </div>
 
-          {reading.uvi < 0.5 && (
+      <div class="rest">
+        <div class="adslot" aria-hidden="true" />
+
+        {view.tomorrow && (
+          <section class="tomorrow">
+            <h2>Tomorrow</h2>
             <p>
-              UV is effectively zero at {loc.name} right now.
-              {view.tomorrow
-                ? ` Tomorrow is forecast to peak at ${formatUvi(view.tomorrow.uvi)} around ${minutesToClock(view.tomorrow.minutes)}.`
-                : ""}
+              Forecast to peak at <strong>{formatUvi(view.tomorrow.uvi)}</strong>{" "}
+              <span class="band" style={`background:${bandFor(view.tomorrow.uvi).bg};color:${bandFor(view.tomorrow.uvi).fg}`}>
+                {bandFor(view.tomorrow.uvi).name}
+              </span>{" "}
+              around {minutesToClock(view.tomorrow.minutes)}.
             </p>
-          )}
-        </>
-      ) : (
-        <p>
-          {view.measured
-            ? `No measured reading is available for ${loc.name} at the moment. This page updates as soon as ARPANSA's station reports again.`
-            : `No current forecast is available for ${loc.name}. This page updates when the next forecast is published.`}
-        </p>
-      )}
+            {showStrip(view.tomorrowStrip) && (
+              <DayStripView strip={view.tomorrowStrip!} credit={view.stripCredit} compact />
+            )}
+          </section>
+        )}
 
-      {loc.stationNote && <p class="small muted">{loc.stationNote}</p>}
+        {view.geometry && (
+          <section class="chart">
+            <h2>Today's forecast</h2>
+            <Chart geometry={view.geometry} summary={describeCurve(view.curve)} peak={curvePeak(view.curve)} />
+          </section>
+        )}
 
-      {window && (
-        <>
-          <h2>Sun protection times</h2>
-          <div class="window">
-            <strong>
-              {minutesToClock(window.start)} to {minutesToClock(window.end)}
-            </strong>
-            <span class="muted small">
-              when UV is forecast to reach {PROTECTION_THRESHOLD} or above
-            </span>
-          </div>
-          {/* Deliberately the clear-sky figure: cloud can break at any time, and
-              under-warning is the dangerous error. Said plainly on the page. */}
-          <p class="small muted">
-            Calculated from the clear-sky forecast, so it assumes no cloud. Cloud may
-            reduce the UV level on the day, but it can clear at any time, so treat these
-            as the hours to be careful.
-          </p>
-        </>
-      )}
+        {view.normals && (
+          <section class="normals-sec">
+            <ThisTimeOfYear normals={view.normals} month={view.month} city={loc.name} />
+          </section>
+        )}
 
-      {view.geometry && (
-        <>
-          <h2>Today's forecast</h2>
-          <Chart geometry={view.geometry} summary={describeCurve(view.curve)} peak={curvePeak(view.curve)} />
-        </>
-      )}
-
-      {view.tomorrow && (
-        <>
-          <h2>Tomorrow</h2>
-          <p>
-            Forecast to peak at <strong>{formatUvi(view.tomorrow.uvi)}</strong>{" "}
-            <span class="band" style={`background:${bandFor(view.tomorrow.uvi).bg};color:${bandFor(view.tomorrow.uvi).fg}`}>
-              {bandFor(view.tomorrow.uvi).name}
-            </span>{" "}
-            around {minutesToClock(view.tomorrow.minutes)}.
-          </p>
-        </>
-      )}
-
-      {view.normals && (
-        <ThisTimeOfYear normals={view.normals} month={view.month} city={loc.name} />
-      )}
-
-      {view.advice && (
-        <>
-          <h2>
-            {view.advice.scope === "tomorrow" ? "What to do tomorrow" : "What to do today"}
-          </h2>
-          {/* The level this advice is for, stated, because it is deliberately
-              not the reading at the top of the page. */}
-          <p class="small muted">
-            {view.advice.scope === "tomorrow"
-              ? "Tomorrow is forecast to reach "
-              : view.advice.scope === "today"
-                ? "UV is forecast to reach "
-                : "At "}
-            <strong>{formatUvi(view.advice.uvi)}</strong>{" "}
-            <span
-              class="band"
-              style={`background:${bandFor(view.advice.uvi).bg};color:${bandFor(view.advice.uvi).fg}`}
-            >
-              {bandFor(view.advice.uvi).name}
-            </span>
-            {view.advice.scope === "today"
-              ? " later today."
-              : view.advice.peak
-                ? (
-                  <>
-                    {" now, up to "}
-                    <strong>{formatUvi(view.advice.peak.uvi)}</strong>
-                    {` around ${minutesToClock(view.advice.peak.minutes)}.`}
-                  </>
-                )
-                : "."}
-          </p>
-          <ul class="todo">
-            {whatToDo(view.advice.uvi).map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          <p class="small">
-            <a href="/uv-index-explained/">What the UV index numbers mean</a>
-          </p>
-        </>
-      )}
-
-      {nearby.length > 0 && (
-        <>
-          <h2>Nearby</h2>
-          <ul class="nearby">
-            {nearby.map((l) => (
-              <li key={l.id}>
-                <a class="lift" href={`/${l.country}/${l.slug}/`}>{l.name}</a>
+        {nearby.length > 0 && (
+          <section class="nearby-sec">
+            <h2>Nearby</h2>
+            <ul class="nearby">
+              {nearby.map((l) => (
+                <li key={l.id}>
+                  <a href={`/${l.country}/${l.slug}/`}>{l.name}</a>
+                </li>
+              ))}
+              <li>
+                <a href={`/${loc.country}/#tomorrow`}>All cities, today and tomorrow</a>
               </li>
-            ))}
-            <li>
-              <a href={`/${loc.country}/#tomorrow`}>All cities, today and tomorrow</a>
-            </li>
-          </ul>
-        </>
-      )}
+            </ul>
+          </section>
+        )}
+      </div>
 
       {/* The credit lives with the data it covers, so no page can show a
           reading without it. */}

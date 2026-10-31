@@ -17,7 +17,7 @@ Read `docs/architecture.md` before changing anything structural.
 ## Commands
 
 ```sh
-npm test              # vitest, 238 tests, no network
+npm test              # vitest, 299 tests, no network
 npm run typecheck     # both tsconfigs
 npm run dev           # wrangler dev on :8787
 npm run deploy        # deploys pushed origin/main and tags it deploy-YYYY-MM-DD-HHMM
@@ -42,6 +42,8 @@ To exercise the cron locally, start `npm run dev` and
 | `src/lib/store.ts` | Everything that touches D1, including the staleness rule |
 | `src/sources/` | One adapter per source: fetch, parse, check |
 | `src/views/` | Server-rendered templates (Hono JSX) |
+| `src/views/tokens.ts` | **Every colour**, the type scale and spacing. No hex anywhere else but `uv.ts`; a test enforces it |
+| `src/lib/strip.ts`, `src/views/DayStrip.tsx` | The day strip: data shaping, then the drawing (full and `compact`) |
 | `fetch/` | Python adapters for the sources a Worker cannot run (EPA, CAMS) |
 | `schema.sql` | D1 schema. There is no `locations` table, on purpose |
 | `docs/seo.md` | **What each page is for**, and the title rules a test enforces |

@@ -84,7 +84,7 @@ export function Privacy() {
       heading="Privacy"
       description="What uvatlas collects, which is almost nothing: no cookies, no accounts, no tracking."
       path="/privacy/"
-      updated="25 October 2026"
+      updated="30 October 2026"
     >
       <p>
         Short version: this site sets no cookies, has no accounts, and does not
@@ -126,8 +126,9 @@ export function Privacy() {
 
       <h2>Third parties</h2>
       <p>
-        No advertising networks, no analytics scripts, no social widgets, no
-        embedded fonts. External links are marked as such, and this notice does
+        No advertising networks, no analytics scripts, no social widgets, and
+        no fonts from anyone else's server: the typeface is served from this
+        site. External links are marked as such, and this notice does
         not cover what those sites do.
       </p>
 

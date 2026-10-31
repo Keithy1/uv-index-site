@@ -47,18 +47,19 @@ export interface HomeView {
 }
 
 const PAGE_CSS = `
-.intro{font-size:17px;max-width:66ch;margin:8px 0}
+.intro{font-size:var(--t-1);max-width:66ch;margin:8px 0}
 details.pick{display:inline-block;position:relative}
-details.pick summary{display:inline;cursor:pointer;font-weight:700;color:var(--link);
+details.pick summary{display:inline;cursor:pointer;font-weight:700;color:var(--zenith);
 text-decoration:underline;text-underline-offset:2px}
 details.pick summary::-webkit-details-marker{display:none}
 details.pick ul{position:absolute;left:0;top:100%;margin:6px 0 0;padding:6px;list-style:none;
-background:var(--bg);border:1px solid var(--line);border-radius:8px;min-width:12rem;z-index:5;
+background:var(--sky);border:1px solid var(--horizon);border-radius:8px;min-width:12rem;z-index:5;
 font-weight:400}
 details.pick li a{display:block;padding:6px 8px;text-decoration:none;border-radius:6px}
-details.pick li a:hover{background:var(--card)}
-.mapbox{margin:16px 0 8px;border:1px solid var(--line);border-radius:12px;
-background:var(--card);padding:8px}
+details.pick li a:hover{background:var(--cloud)}
+/* The map sits on the page, unframed (audit finding G2: the map, the chart,
+   the reading and these cards all wore the same grey box). */
+.mapbox{margin:var(--s-4) 0 var(--s-2)}
 .mapbox svg{display:block;width:100%;height:auto}
 .mapbox a:focus-visible path,.mapbox a:focus-visible circle{outline:none}
 .mapbox a path{transition:opacity .12s}
@@ -68,11 +69,9 @@ background:var(--card);padding:8px}
 .tip{opacity:0;pointer-events:none;transition:opacity .09s ease-out}
 @media (prefers-reduced-motion:reduce){.mapbox a path,.tip{transition:none}}
 .countries{list-style:none;padding:0;margin:16px 0;display:grid;gap:10px}
-.countries li{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-@media (prefers-reduced-motion:no-preference){
-.countries li{transition:transform .15s ease-out,box-shadow .15s ease-out}
-.countries li:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgb(0 0 0/.08)}
-}
+/* A rule between countries rather than a card each, and nothing that rises
+   on hover: the link underlines, which is the one thing that answers it. */
+.countries li{border-top:1px solid var(--horizon);padding:var(--s-3) 0}
 .countries a.name{font-weight:600;font-size:1.05rem;text-decoration:none}
 .countries a.name:hover{text-decoration:underline}
 .countries .figure{display:flex;align-items:center;gap:3px 10px;margin-top:6px;flex-wrap:wrap}
@@ -83,12 +82,12 @@ background:var(--card);padding:8px}
    depends on the city name too, so any card can wrap on any day. */
 .countries .figure .muted{flex-basis:100%}
 .countries .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.band{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-weight:600;font-size:.85rem}
-.later{color:var(--muted);font-size:.9rem;margin:12px 0 0}
-#hint{display:none;margin:16px 0;padding:12px 14px;border:1px solid var(--line);
-border-left:4px solid var(--link);border-radius:8px;background:var(--card)}
+.band{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-weight:600;font-size:var(--t-0)}
+.later{color:var(--haze);font-size:var(--t-0);margin:12px 0 0}
+#hint{display:none;margin:16px 0;padding:12px 14px;border:1px solid var(--horizon);
+border-left:4px solid var(--zenith);border-radius:8px;background:var(--cloud)}
 #hint a{font-weight:600}
-#hint button{margin-left:10px;background:none;border:0;color:var(--muted);
+#hint button{margin-left:10px;background:none;border:0;color:var(--haze);
 cursor:pointer;font:inherit;text-decoration:underline}
 @media (min-width:620px){.countries{grid-template-columns:1fr 1fr}}
 `;
@@ -133,8 +132,8 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
             assistive technology because it carries no information. */}
         <path
           d={OTHER_COUNTRIES_PATH}
-          fill="var(--line)"
-          stroke="var(--bg)"
+          fill="var(--horizon)"
+          stroke="var(--sky)"
           stroke-width="0.6"
           aria-hidden="true"
         />
@@ -142,7 +141,7 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
           <path
             key={c.code}
             d={COUNTRY_PATHS[c.code]}
-            fill="var(--muted)"
+            fill="var(--haze)"
             opacity="0.38"
             aria-hidden="true"
           />
@@ -167,7 +166,7 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
                 h.uvi !== null ? `: UV ${formatUvi(h.uvi)} ${band!.name}` : ""
               }`}
             >
-              <path d={path} fill={band ? band.bg : "var(--link)"} />
+              <path d={path} fill={band ? band.bg : "var(--zenith)"} />
               {/* A country too small to tap at phone width still gets a
                   target big enough to hit. */}
               {marker && (
@@ -175,8 +174,8 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
                   cx={marker.x}
                   cy={marker.y}
                   r="9"
-                  fill={band ? band.bg : "var(--link)"}
-                  stroke="var(--bg)"
+                  fill={band ? band.bg : "var(--zenith)"}
+                  stroke="var(--sky)"
                   stroke-width="2"
                 />
               )}
@@ -195,9 +194,9 @@ function WorldMap({ headlines }: { headlines: readonly CountryHeadline[] }) {
           return (
             <g key={`${h.country.code}-tip`} class={`tip t-${h.country.code}`} aria-hidden="true">
               <rect x={marker.x - width / 2} y={marker.y - 38} width={width} height="24"
-                rx="6" fill="var(--fg)" stroke="var(--bg)" stroke-width="1.2" />
+                rx="6" fill="var(--shade)" stroke="var(--sky)" stroke-width="1.2" />
               <text x={marker.x} y={marker.y - 21} font-size="14" font-weight="600"
-                fill="var(--bg)" text-anchor="middle">{label}</text>
+                fill="var(--sky)" text-anchor="middle">{label}</text>
             </g>
           );
         })}

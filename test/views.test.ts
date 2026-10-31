@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCurve, type CurvePoint } from "../src/lib/chart";
+import { buildCurve, protectionWindow, type CurvePoint } from "../src/lib/chart";
+import { dayStrip } from "../src/lib/strip";
 import { COUNTRIES, locationsIn } from "../src/lib/locations";
 import type { CityNormals } from "../src/lib/normals";
 import { CityPage, type CityView } from "../src/views/CityPage";
@@ -54,6 +55,20 @@ function city(location: typeof PERTH, measured: boolean, over: Partial<CityView>
     advice: { uvi: 7.4, scope: "now" },
     normals: NORMALS,
     month: 10,
+    strip: dayStrip({
+      points: CURVE,
+      sun: { sunrise: 5 * 60 + 20, sunset: 18 * 60 + 40 },
+      window: protectionWindow(CURVE),
+      nowMinutes: 12 * 60,
+    }),
+    tomorrowStrip: dayStrip({
+      points: CURVE,
+      sun: { sunrise: 5 * 60 + 20, sunset: 18 * 60 + 40 },
+      window: protectionWindow(CURVE),
+      nowMinutes: null,
+      label: "Tomorrow",
+    }),
+    stripCredit: measured ? "Forecast by CAMS" : "Forecast by the US EPA and CAMS",
     ...over,
   };
   return String(CityPage(v));
@@ -189,7 +204,7 @@ describe("F2: the country table fits a 360 px phone", () => {
 describe("F4: the selected day reads in dark mode", () => {
   it("sets the selected label in the page colour, not white", () => {
     const h = country([row("perth")]);
-    expect(h).toContain("{background:var(--link);color:var(--bg)}");
+    expect(h).toContain("{background:var(--zenith);color:var(--sky)}");
     expect(h).not.toContain("color:#fff}");
   });
 });
@@ -198,7 +213,8 @@ describe("F5: prose is set to be read", () => {
   it("holds text pages to 66 characters, left-aligned, at 17 px", () => {
     const h = String(Guide());
     expect(h).toMatch(/\.prose\{[^}]*max-width:66ch/);
-    expect(h).toMatch(/\.prose\{[^}]*font-size:17px/);
+    expect(h).toMatch(/\.prose\{[^}]*font-size:var\(--t-1\)/);
+    expect(h).toMatch(/--t-1:17px/);
     expect(h).not.toMatch(/text-align:justify|hyphens:auto/);
   });
 });
@@ -247,5 +263,98 @@ describe("W2 and W5: words that match what is there", () => {
 
   it("labels the header menu for what it does", () => {
     expect(String(NotFound())).toContain("<summary>Choose a country</summary>");
+  });
+});
+
+describe("The day strip on a city page (session 2)", () => {
+  /** The strip's own markup, from its <figure> to the end of it. */
+  function strip(html: string): string {
+    return html.match(/<figure class="strip">.*?<\/figure>/s)![0];
+  }
+
+  it("comes after the reading and before what to do", () => {
+    const h = city(PERTH, true);
+    const at = (s: string) => h.indexOf(s);
+    expect(at('class="reading"')).toBeGreaterThan(0);
+    expect(at('class="strip"')).toBeGreaterThan(at('class="reading"'));
+    expect(at('class="todo"')).toBeGreaterThan(at('class="strip"'));
+    expect(at('class="adslot"')).toBeGreaterThan(at('class="todo"'));
+    expect(at('class="tomorrow"')).toBeGreaterThan(at('class="adslot"'));
+    expect(at('class="chart"')).toBeGreaterThan(at('class="tomorrow"'));
+  });
+
+  it("carries its credit inside itself, and the reading keeps its own", () => {
+    const h = city(PERTH, true);
+    expect(copy(strip(h))).toContain("Forecast by CAMS");
+    expect(copy(h.match(/<div class="reading">.*?<\/div>\s*<\/section>|<div class="reading">.*?<p class="credit">.*?<\/p>/s)![0])).toContain(
+      "Measured by ARPANSA",
+    );
+    expect(copy(strip(city(MIAMI, false)))).toContain("Forecast by the US EPA and CAMS");
+  });
+
+  it("never calls a US strip live or measured", () => {
+    expect(copy(strip(city(MIAMI, false)))).not.toMatch(/\blive\b|measured/i);
+  });
+
+  it("brackets the protection window, in words a reader can act on", () => {
+    const w = protectionWindow(CURVE)!;
+    expect(w).not.toBeNull();
+    expect(copy(strip(city(PERTH, true)))).toMatch(/Cover up \d+:\d\d am to \d+:\d\d pm/);
+  });
+
+  it("draws no bracket when there is no window", () => {
+    const flat = CURVE.map((p) => ({ ...p, uvi: Math.min(p.uvi, 2) }));
+    const s = dayStrip({ points: flat, sun: { sunrise: 320, sunset: 1120 }, window: protectionWindow(flat), nowMinutes: null });
+    const h = strip(city(PERTH, true, { strip: s }));
+    expect(h).not.toContain('class="bracket"');
+    expect(copy(h)).not.toMatch(/cover up/i);
+  });
+
+  it("names the peak and the window for a screen reader", () => {
+    const text = copy(strip(city(PERTH, true)));
+    expect(text).toMatch(/peak 9\.0 Very High at 12:00 pm/);
+    expect(text).toMatch(/cover up \d+:\d\d am to \d+:\d\d pm/);
+  });
+
+  it("prints values in ink, colours bars only, and marks missing hours as missing", () => {
+    const morning = CURVE.filter((p) => p.minutes >= 11 * 60);
+    const s = dayStrip({ points: morning, sun: { sunrise: 320, sunset: 1120 }, window: null, nowMinutes: null });
+    const h = city(PERTH, true, { strip: s });
+    expect(strip(h)).toContain('class="c x');
+    expect(h).toMatch(/\.strip \.v\{color:var\(--shade\)/);
+    expect(h).toMatch(/\.strip \.b3 \.bar\{background:var\(--band-3\)\}/);
+    expect(copy(strip(h))).toContain("No forecast before 11:00 am");
+  });
+
+  it("outlines the hour that holds now, and only on today's strip", () => {
+    const h = city(PERTH, true);
+    expect(strip(h).match(/class="c [^"]*\bnow\b/g)).toHaveLength(1);
+    const tomorrow = h.match(/<figure class="strip compact">.*?<\/figure>/s)![0];
+    expect(tomorrow).not.toMatch(/\bnow\b"/);
+  });
+
+  it("moves nothing", () => {
+    const css = city(PERTH, true).match(/<style>(?!.*@font-face).*?<\/style>/gs)!.join("");
+    expect(css).not.toMatch(/@keyframes|animation:|\.strip[^{]*\{[^}]*transition/);
+  });
+
+  it("reserves the ad slot at a fixed height while ads are off", () => {
+    const h = city(PERTH, true);
+    expect(h).toMatch(/\.adslot\{min-height:100px/);
+    expect(h).toContain('<div class="adslot" aria-hidden="true"></div>');
+  });
+});
+
+describe("G2: one panel, not a page of boxes", () => {
+  it("drops the hover lift", () => {
+    for (const h of [city(PERTH, true), String(HomePage({ headlines: [], now: NOW }))]) {
+      expect(h).not.toMatch(/class="[^"]*\blift\b|\.lift[{:]/);
+      expect(h).not.toMatch(/translateY\(-2px\)/);
+    }
+  });
+
+  it("gives the chart no panel of its own", () => {
+    expect(city(PERTH, true)).toMatch(/\.chartbox\{[^}]*\}/);
+    expect(city(PERTH, true).match(/\.chartbox\{[^}]*\}/)![0]).not.toMatch(/background|border/);
   });
 });
