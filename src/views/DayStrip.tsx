@@ -17,9 +17,9 @@
  * The drawn strip is hidden from screen readers; its summary says the same in
  * words, and the hourly table under the chart has every value.
  */
-import type { DayStrip, StripCell } from "../lib/strip";
+import { cellLevel, placeOnAxis, type DayStrip, type StripAxis, type StripCell } from "../lib/strip";
 import { minutesToClock } from "../lib/time";
-import { formatUvi, roundForBand } from "../lib/uv";
+import { BANDS, bandFor, formatUvi, roundForBand } from "../lib/uv";
 
 export const DAY_STRIP_CSS = `
 .strip{margin:var(--s-4) 0 var(--s-2)}
@@ -142,5 +142,47 @@ export function DayStripView({
           : ""}
       </figcaption>
     </figure>
+  );
+}
+
+/**
+ * The strip as one row of a country page: a bar per hour and nothing else.
+ *
+ * Not the `compact` strip above, for weight. That one spends about 130 bytes a
+ * cell on labels, wells and a per-cell height, and a US page draws some 1,200
+ * cells (fifty cities, today and tomorrow): 150 KB of strip on a page meant to
+ * be under 100 KB. Here a cell is an empty <i> whose one class, its level,
+ * sets both its height and its band colour; a level-0 cell has no class at all.
+ * The hour labels are drawn once, in the column heading, against the axis every
+ * row shares (stripAxis), and the offset is one custom property per row.
+ */
+export const ROW_STRIP_CSS = `
+.ms{display:flex;align-items:flex-end;height:28px;--hh:26px}
+.ms i{flex:none;box-sizing:border-box;width:calc(200%/var(--n));height:2px;
+border-bottom:2px solid var(--shade);border-right:2px solid transparent;
+background:var(--band-0);background-clip:padding-box}
+.ms>:first-child{margin-left:calc(var(--o,0)*100%/var(--n))}
+${Array.from({ length: 12 }, (_, i) => {
+  const n = i + 1;
+  return `.ms .u${n}{height:calc(2px + var(--hh)*${n}/12);background-color:var(--band-${BANDS.indexOf(bandFor(n))})}`;
+}).join("")}
+.ms .x{height:100%;border-bottom:2px dashed var(--haze);
+background:repeating-linear-gradient(135deg,transparent 0 3px,var(--horizon) 3px 5px)}
+.ms .n{outline:2px solid var(--shade);outline-offset:1px}
+@media (min-width:620px){.ms{height:40px;--hh:38px}}
+`;
+
+export function RowStrip({ strip, axis, cls }: { strip: DayStrip; axis: StripAxis; cls: string }) {
+  const { offset } = placeOnAxis(strip, axis);
+  return (
+    <div class={`ms ${cls}`} style={offset ? `--o:${offset}` : undefined}>
+      {strip.cells.map((cell) => {
+        const level = cellLevel(cell);
+        const k = [level === null ? "x" : level > 0 ? `u${level}` : "", cell.now ? "n" : ""]
+          .filter(Boolean)
+          .join(" ");
+        return <i class={k || undefined} />;
+      })}
+    </div>
   );
 }

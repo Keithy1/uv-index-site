@@ -22,7 +22,7 @@
  */
 import type { CurvePoint } from "./chart";
 import { minutesToClock } from "./time";
-import { BANDS, bandFor, formatUvi } from "./uv";
+import { BANDS, bandFor, formatUvi, roundForBand } from "./uv";
 
 export interface StripCell {
   /** Local minutes at the middle of the cell: the instant its value is for. */
@@ -160,4 +160,41 @@ function describe(
   if (tail < cells.length - 1) text += ` No forecast after ${minutesToClock(cells[tail]!.minutes)}.`;
   if (cells.slice(lead, tail + 1).some((c) => c.uvi === null)) text += " Some hours have no forecast.";
   return text;
+}
+
+/**
+ * A clock shared by every strip on a country page, in local minutes on whole
+ * hours. Small multiples only compare when they share an axis: each row is
+ * drawn by its own city's local time, so 1 pm sits in the same column in Perth
+ * and Sydney, and a city whose sun rises later starts further right.
+ */
+export interface StripAxis {
+  readonly from: number;
+  readonly to: number;
+}
+
+export function stripAxis(strips: readonly (DayStrip | null)[]): StripAxis | null {
+  const drawn = strips.filter((s): s is DayStrip => s !== null);
+  if (drawn.length === 0) return null;
+  return {
+    from: Math.floor(Math.min(...drawn.map((s) => s.from)) / HOUR) * HOUR,
+    to: Math.ceil(Math.max(...drawn.map((s) => s.to)) / HOUR) * HOUR,
+  };
+}
+
+/**
+ * Where one strip sits on the shared axis, in half-hours: a cell is two wide,
+ * and a half-hour zone's cells start half a cell later than everyone else's.
+ */
+export function placeOnAxis(strip: DayStrip, axis: StripAxis): { offset: number; span: number } {
+  return { offset: (strip.from - axis.from) / HALF, span: (axis.to - axis.from) / HALF };
+}
+
+/**
+ * The level a compact cell draws: the whole number its band comes from, up to
+ * the strip's fixed scale of 12. One number fixes both the bar's height and
+ * its colour, so a cell needs one class. Null is missing, never 0.
+ */
+export function cellLevel(cell: StripCell): number | null {
+  return cell.uvi === null ? null : Math.min(roundForBand(cell.uvi), 12);
 }
