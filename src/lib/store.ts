@@ -323,9 +323,10 @@ export interface CountryRow {
 }
 
 /**
- * One local day of measurements, small enough to ride in city_now: the reading
- * nearest each whole UTC hour (the instants the forecast and the strip's cells
- * sit on) and the day's highest, wherever it fell.
+ * One local day of measurements, small enough to ride in city_now: the highest
+ * reading in the hour around each whole UTC hour (the instants the forecast and
+ * the strip's cells sit on, each cell spanning half an hour either side), and
+ * the day's highest.
  */
 export interface MeasuredDay {
   /** The local date, in the city's own zone. */
@@ -444,8 +445,8 @@ function parseMeasuredDay(json: string | null): MeasuredDay | null {
 
 /**
  * Fold a city's new readings into its day of measurements. A new local day
- * starts empty; within a day each hour keeps the reading nearest it, and the
- * highest reading is kept whenever it fell.
+ * starts empty; within a day each hour keeps its highest reading, as the strip
+ * draws it (see lib/strip.ts), and the day's highest is kept whenever it fell.
  */
 export function foldMeasuredDay(
   prior: MeasuredDay | null,
@@ -457,14 +458,13 @@ export function foldMeasuredDay(
     const key = localDateKey(r.validAt, tz);
     if (!day || key > day.day) day = { day: key, max: r, hours: [] };
     else if (key < day.day) continue;
-    const t = Date.parse(r.validAt);
-    const hour = Math.round(t / 3_600_000) * 3_600_000;
-    const off = (p: ForecastPoint) => Math.abs(Date.parse(p.validAt) - hour);
-    const i = day.hours.findIndex((p) => Math.round(Date.parse(p.validAt) / 3_600_000) * 3_600_000 === hour);
+    // The hour a reading belongs to: the whole UTC hour within half an hour of it.
+    const hourOf = (p: ForecastPoint) => Math.round(Date.parse(p.validAt) / 3_600_000);
+    const i = day.hours.findIndex((p) => hourOf(p) === hourOf(r));
     const hours =
       i === -1
         ? [...day.hours, r].sort((a, b) => a.validAt.localeCompare(b.validAt))
-        : off(r) < off(day.hours[i]!)
+        : r.uvi > day.hours[i]!.uvi
           ? day.hours.map((p, j) => (j === i ? r : p))
           : day.hours;
     day = { day: day.day, max: r.uvi > day.max.uvi ? r : day.max, hours };

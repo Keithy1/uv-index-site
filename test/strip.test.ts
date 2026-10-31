@@ -221,7 +221,7 @@ describe("dayStrip: measured hours", () => {
   const at1120 = () =>
     dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 24, measured: readings, latest })!;
 
-  it("takes each hour already gone from the reading at its instant", () => {
+  it("takes each hour already gone from its readings", () => {
     const s = at1120();
     const ten = s.cells.find((c) => c.minutes === 10 * 60)!;
     expect(ten.measured).toBe(true);
@@ -241,7 +241,7 @@ describe("dayStrip: measured hours", () => {
   });
 
   it("falls back to the forecast for an hour with no reading near it", () => {
-    const gap = readings.filter((p) => Math.abs(p.minutes - 8 * 60) > 15);
+    const gap = readings.filter((p) => Math.abs(p.minutes - 8 * 60) > 30);
     const s = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 24, measured: gap, latest })!;
     const eight = s.cells.find((c) => c.minutes === 8 * 60)!;
     expect(eight.measured).toBe(false);
@@ -252,5 +252,21 @@ describe("dayStrip: measured hours", () => {
   it("measures nothing without a now: tomorrow is all forecast", () => {
     const s = dayStrip({ points: bell(), sun: SUN, window: null, nowMinutes: null, measured: readings, latest })!;
     expect(s.cells.every((c) => !c.measured)).toBe(true);
+  });
+});
+
+describe("dayStrip: a measured hour under passing cloud", () => {
+  it("shows the hour's highest reading, so the day's peak is on the strip", () => {
+    // Gold Coast, 31 October, 9 to 10 am AEST, as the station reported it.
+    const readings: CurvePoint[] = [
+      [545, 3.6], [550, 4.0], [555, 4.2], [558, 4.9], [565, 8.6], [570, 8.4], [575, 6.6],
+      [579, 4.7], [585, 6.6], [589, 9.4], [595, 6.2], [598, 7.9], [605, 6.7], [610, 8.5],
+    ].map(([minutes, uvi]) => ({ minutes: minutes!, uvi: uvi! }));
+    const s = dayStrip({
+      points: bell(), sun: SUN, window: null, nowMinutes: 11 * 60 + 5, measured: readings, latest: null,
+    })!;
+    const at = (h: number) => s.cells.find((c) => c.minutes === h * 60)!;
+    expect(at(9)).toMatchObject({ uvi: 8.6, measured: true }); // 8:30 to 9:30: 8.6 at 9:25
+    expect(at(10)).toMatchObject({ uvi: 9.4, measured: true });
   });
 });

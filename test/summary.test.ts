@@ -343,7 +343,7 @@ describe("EPA UV Alerts", () => {
 });
 
 describe("the day of measurements in city_now", () => {
-  it("keeps the reading nearest each hour and the day's highest", async () => {
+  it("keeps the highest reading in each hour and the day's highest", async () => {
     // Perth is UTC+8: 03:00Z is 11 am. Runs every five minutes, a batch each.
     const db = d1();
     for (const [at, uvi] of [
@@ -359,7 +359,7 @@ describe("the day of measurements in city_now", () => {
     expect(day.day).toBe("2026-10-27");
     expect(day.max).toEqual({ validAt: "2026-10-27T02:27:00Z", uvi: 9.1 });
     expect(day.hours).toEqual([
-      { validAt: "2026-10-27T01:58:00Z", uvi: 5.0 },
+      { validAt: "2026-10-27T02:27:00Z", uvi: 9.1 },
       { validAt: "2026-10-27T03:01:00Z", uvi: 7.3 },
     ]);
   });
