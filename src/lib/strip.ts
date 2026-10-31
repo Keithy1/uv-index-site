@@ -22,9 +22,14 @@
  *
  * Where an instrument exists, the hours already gone are measured, not
  * forecast: an all-forecast strip beside a reading of 8.6 showed 11 am at 6.5,
- * with the forecast's noon high above both. Each past cell takes the reading
- * nearest its instant; the current hour takes the latest reading, so the
+ * with the forecast's noon high above both. Each past cell takes the highest
+ * reading in its hour; the current hour takes the latest reading, so the
  * outlined cell always agrees with the number at the top of the page.
+ *
+ * The highest, not the one nearest the hour: under passing cloud Gold Coast
+ * read 4.7 at 9:39 am and 9.4 at 9:49, and a strip sampling on the hour showed
+ * neither while the page named 9.4 as the day's peak. The highest in each hour
+ * is what the hour asked of anyone outside, and it puts the peak on the strip.
  */
 import type { CurvePoint } from "./chart";
 import { minutesToClock } from "./time";
@@ -83,20 +88,15 @@ const HOUR = 60;
 const HALF = 30;
 /** A forecast instant within this of a cell's middle is that cell's value. */
 const EXACT = 5;
-/**
- * A reading within this of a cell's middle stands for that hour. The cron
- * samples ARPANSA every five minutes, so the nearest is normally within three;
- * past a quarter of an hour it belongs to another part of the hour.
- */
-export const NEAR = 15;
-
+/** The highest reading in the cell around `minutes`, or null where there is none. */
 function measuredAt(points: readonly CurvePoint[], minutes: number): number | null {
-  let best: CurvePoint | null = null;
+  let best: number | null = null;
   for (const p of points) {
-    const d = Math.abs(p.minutes - minutes);
-    if (d <= NEAR && (!best || d < Math.abs(best.minutes - minutes))) best = p;
+    if (p.minutes >= minutes - HALF && p.minutes < minutes + HALF && (best === null || p.uvi > best)) {
+      best = p.uvi;
+    }
   }
-  return best ? best.uvi : null;
+  return best;
 }
 
 function valueAt(sorted: readonly CurvePoint[], minutes: number): number | null {
