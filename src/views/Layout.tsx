@@ -47,7 +47,7 @@ interface Props {
  * installed is skipped, so each platform lands on the one it has; macOS has
  * Arial, and San Francisco cannot be named in local().
  */
-const FONT_CSS = `
+export const FONT_CSS = `
 @font-face{font-family:"Atkinson Hyperlegible Next";src:url(${FONT_PATH}) format("woff2");
 font-weight:200 800;font-style:normal;font-display:swap}
 @font-face{font-family:"AHN Segoe";src:local("Segoe UI");size-adjust:99.45%;

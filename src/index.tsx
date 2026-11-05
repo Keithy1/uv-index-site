@@ -42,6 +42,8 @@ import {
 } from "./lib/sitemap";
 import { canonicalRedirect } from "./lib/urls";
 import { PIXEL_GIF, visitPoint } from "./lib/visit";
+import { keyMatches, rangeDays, readStats } from "./lib/stats";
+import { StatsPage } from "./views/StatsPage";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
@@ -256,6 +258,28 @@ app.get("/api/where", (c) => {
  * a deploy without it still serve the image. Always the image, counted or not,
  * and never cached, or a returning reader would be counted once.
  */
+/**
+ * The private views page; see lib/stats.ts and views/StatsPage.tsx.
+ *
+ * Any wrong key, or none configured, gets the ordinary 404 -- nothing says a
+ * page is here. Never cached: the counts change, and a cached copy would hold
+ * the key in a shared cache. robots.txt names /stats/ so a crawler handed the
+ * URL leaves it alone, and the page says noindex as well.
+ */
+app.get("/stats/:key/", async (c) => {
+  c.header("Cache-Control", "no-store");
+  c.header("X-Robots-Tag", "noindex, nofollow");
+  c.header("Referrer-Policy", "no-referrer");
+  const key = c.req.param("key");
+  if (!(await keyMatches(key, c.env.STATS_KEY)) || !c.env.CF_ANALYTICS_TOKEN || !c.env.CF_ACCOUNT_ID) {
+    return c.html(<NotFound />, 404);
+  }
+  const range = rangeDays(c.req.query("days"));
+  const data = await readStats(c.env.CF_ACCOUNT_ID, c.env.CF_ANALYTICS_TOKEN, range, new Date());
+  if (data.error) console.error(`stats: ${data.error}`);
+  return c.html(<StatsPage urlKey={key} range={range} {...data} />, data.error ? 503 : 200);
+});
+
 app.get("/api/v", (c) => {
   const point = visitPoint(c.req.raw, c.req.raw.headers.get("CF-IPCountry") ?? undefined);
   if (point) c.env.VISITS?.writeDataPoint(point);
@@ -765,6 +789,7 @@ app.get("/robots.txt", (c) => {
       ? [
           "User-agent: *",
           "Disallow: /api/",
+          "Disallow: /stats/",
           "",
           "Sitemap: https://uvatlas.com/sitemap.xml",
           "",
