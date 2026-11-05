@@ -21,7 +21,8 @@ npm test              # vitest, 299 tests, no network
 npm run typecheck     # both tsconfigs
 npm run dev           # wrangler dev on :8787
 npm run deploy        # deploys pushed origin/main and tags it deploy-YYYY-MM-DD-HHMM
-npm run db:init:local # apply schema.sql to the local D1
+npm run db:reset:local   # rebuild the local D1 from git (stop dev first)
+npm run db:migrate:local # apply new migrations to the local D1
 python -m unittest discover -s fetch/tests -t .   # the Python fetchers
 ```
 
@@ -85,6 +86,13 @@ To exercise the cron locally, start `npm run dev` and
   git-ignored `.env` (fetchers) and `.dev.vars` (Worker), with names listed in
   the committed `.env.example`. `.githooks/pre-commit` and the CI `secrets`
   job enforce it — never bypass them with `--no-verify`.
+- **A schema change is two edits: a new numbered file in `migrations/` and
+  the same change in `schema.sql`.** `npm run deploy` applies new migrations
+  to production first, then refuses to deploy unless production matches
+  `schema.sql`. The live code meets the migrated database before the new code
+  lands, so a migration only adds; drop or rename in a later deploy. Never
+  change production's schema by hand: that is how `newest_run` reached it with
+  no migration file. See "Schema changes" in `docs/architecture.md`.
 - **Ads stay off** in `COUNTRIES` until the licence position for that country
   allows them. Australia needs ARPANSA's written authorisation. A test asserts this.
 

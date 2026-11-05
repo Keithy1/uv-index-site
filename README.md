@@ -30,7 +30,7 @@ break by accident, and `docs/setup.md` lists the accounts still needed.
 
 ```sh
 npm ci
-npm run db:init:local   # apply schema.sql to a local D1
+npm run db:reset:local  # build the local D1 from schema.sql and the seed
 npm run dev             # http://127.0.0.1:8787
 
 npm test                # 46 tests, no network

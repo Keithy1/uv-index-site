@@ -58,7 +58,10 @@
       // every cache-miss render reads from it, so this is the compromise for a
       // worldwide site whose largest search volume is the US while Australia
       // still has to be usable. Not a secret; a database id is not a credential.
-      "database_id": "36e40279-adf1-4e11-8c0b-4d5b9f9f4686"
+      "database_id": "36e40279-adf1-4e11-8c0b-4d5b9f9f4686",
+      // The default, written out: every schema change is a file here, and
+      // scripts/deploy.mjs applies the new ones before deploying the code.
+      "migrations_dir": "migrations"
     }
   ]
 }
