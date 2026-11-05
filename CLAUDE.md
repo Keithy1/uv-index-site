@@ -81,8 +81,9 @@ To exercise the cron locally, start `npm run dev` and
   shipped claiming one. See `docs/seo.md`.
 - **No credential is ever written into a tracked file.** The repository is
   public. Live values are GitHub Actions secrets (`ADS_API_KEY`,
-  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and a Worker secret
-  (`GITHUB_DISPATCH_TOKEN`, via `wrangler secret put`); local copies go in the
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and Worker secrets
+  (`GITHUB_DISPATCH_TOKEN`; `STATS_KEY` and `CF_ANALYTICS_TOKEN` for the
+  private views page at `/stats/<key>/`; all via `wrangler secret put`); local copies go in the
   git-ignored `.env` (fetchers) and `.dev.vars` (Worker), with names listed in
   the committed `.env.example`. `.githooks/pre-commit` and the CI `secrets`
   job enforce it — never bypass them with `--no-verify`.

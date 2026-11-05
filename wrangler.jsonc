@@ -40,7 +40,11 @@
     // Switched on 27 October 2026, after the read-budget fix, the search
     // phrases audit and Search Console verification. Previews on workers.dev
     // stay noindex regardless: indexing needs the production host as well.
-    "SITE_INDEXABLE": "true"
+    "SITE_INDEXABLE": "true",
+
+    // For the views page's Analytics Engine queries. Not a credential: the
+    // account id is in every dashboard URL. The token is a secret.
+    "CF_ACCOUNT_ID": "d6244fd230ef5319219a46c9903a84e9"
   },
 
   // ARPANSA measured readings, every 5 minutes. This is the only cron the Worker owns;

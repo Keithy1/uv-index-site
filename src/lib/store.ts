@@ -27,6 +27,14 @@ export interface Env {
   readonly GITHUB_DISPATCH_TOKEN?: string;
   /** Page views from the pixel (lib/visit.ts). Absent in tests and local dev. */
   readonly VISITS?: AnalyticsEngineDataset;
+  /**
+   * The private views page (/stats/<key>). STATS_KEY is the key in its URL and
+   * CF_ANALYTICS_TOKEN reads Analytics Engine (Account Analytics: Read only);
+   * both are Worker secrets. Without the key the page does not exist.
+   */
+  readonly STATS_KEY?: string;
+  readonly CF_ANALYTICS_TOKEN?: string;
+  readonly CF_ACCOUNT_ID?: string;
 }
 
 /**
