@@ -31,3 +31,8 @@ interface D1Database {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<D1Result[]>;
 }
+
+/** Named by store.ts's Env; tests never write to it. Same rule as above. */
+interface AnalyticsEngineDataset {
+  writeDataPoint(point?: { indexes?: string[]; blobs?: string[]; doubles?: number[] }): void;
+}

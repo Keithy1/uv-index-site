@@ -25,6 +25,8 @@ export interface Env {
    * dropped it. Absent means the Worker never intervenes.
    */
   readonly GITHUB_DISPATCH_TOKEN?: string;
+  /** Page views from the pixel (lib/visit.ts). Absent in tests and local dev. */
+  readonly VISITS?: AnalyticsEngineDataset;
 }
 
 /**

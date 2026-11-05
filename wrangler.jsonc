@@ -49,6 +49,11 @@
     "crons": ["*/5 * * * *"]
   },
 
+  // Page views from the /api/v pixel (src/lib/visit.ts). Workers Free includes
+  // 100,000 data points written and 10,000 queries a day, account-wide; at
+  // ~1k views a day this is about 1%. The dataset is created on first write.
+  "analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "uvatlas_visits" }],
+
   "d1_databases": [
     {
       "binding": "DB",

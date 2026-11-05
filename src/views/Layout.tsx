@@ -233,6 +233,18 @@ export function Layout(props: Props) {
             </nav>
           </div>
         </footer>
+        {/* The page-view count: an image, so it needs no script (lib/visit.ts).
+            Not lazy -- at the foot of the page, lazy would only count readers
+            who scroll that far. */}
+        <img
+          class="vh"
+          src={`/api/v?p=${encodeURIComponent(props.path)}`}
+          width="1"
+          height="1"
+          alt=""
+          decoding="async"
+          fetchpriority="low"
+        />
       </body>
     </html>
   );
