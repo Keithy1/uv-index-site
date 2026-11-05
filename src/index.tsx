@@ -41,6 +41,7 @@ import {
   sitemapIndex,
 } from "./lib/sitemap";
 import { canonicalRedirect } from "./lib/urls";
+import { PIXEL_GIF, visitPoint } from "./lib/visit";
 import type { CurvePoint } from "./lib/chart";
 import { COUNTRIES, countrySettings, liveCountries, locationsIn } from "./lib/locations";
 import type { CountryCode } from "./lib/locations";
@@ -244,6 +245,23 @@ app.get("/api/where", (c) => {
   const served = liveCountries().some((x) => x.code === country);
   c.header("Cache-Control", "no-store");
   return c.json({ country: country || null, served });
+});
+
+/**
+ * The page-view pixel every page carries; see lib/visit.ts for what counts.
+ *
+ * Analytics Engine rather than D1: D1's daily write allowance is already the
+ * tightest budget on the account, and this is exactly the append-only, query
+ * later data Analytics Engine is for. The binding is optional so local dev and
+ * a deploy without it still serve the image. Always the image, counted or not,
+ * and never cached, or a returning reader would be counted once.
+ */
+app.get("/api/v", (c) => {
+  const point = visitPoint(c.req.raw, c.req.raw.headers.get("CF-IPCountry") ?? undefined);
+  if (point) c.env.VISITS?.writeDataPoint(point);
+  return new Response(PIXEL_GIF, {
+    headers: { "Content-Type": "image/gif", "Cache-Control": "no-store" },
+  });
 });
 
 /**

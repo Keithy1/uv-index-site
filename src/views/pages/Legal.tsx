@@ -84,7 +84,7 @@ export function Privacy() {
       heading="Privacy"
       description="What uvatlas collects, which is almost nothing: no cookies, no accounts, no tracking."
       path="/privacy/"
-      updated="30 October 2026"
+      updated="5 November 2026"
     >
       <p>
         Short version: this site sets no cookies, has no accounts, and does not
@@ -102,6 +102,15 @@ export function Privacy() {
         processing involves your IP address and the kind of technical
         information every web server receives. It is not used to build a profile
         of you and is not combined with anything else.
+      </p>
+      <p>
+        To know how many people read each page, every page loads a tiny image
+        from this site. When it does, the site counts one view and keeps four
+        things: which page it was, the country Cloudflare reports for the
+        request, whether the device is a phone or a computer, and the site's own
+        address. Your IP address and browser details are not kept, and no
+        cookie or identifier is used, so views cannot be linked to each other
+        or to you.
       </p>
 
       <h2>Cookies</h2>
