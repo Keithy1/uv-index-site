@@ -84,6 +84,38 @@ Writes are idempotent upserts, so re-fetching the same minute costs one write
 rather than one row. Current volume is roughly 4,600 ARPANSA writes a day against
 D1's free allowance of 100,000.
 
+### Schema changes: git is the source of truth
+
+`schema.sql` is the finished shape of the database. `migrations/` holds the
+numbered steps that take a live database there, and wrangler records each
+one in production's `d1_migrations` table so it runs exactly once.
+
+`npm run deploy` (by hand or from `deploy.yml`) does three things in order:
+
+1. `wrangler d1 migrations apply uvatlas --remote`: any migration production
+   has not had.
+2. Compares production's tables, columns and indexes with `schema.sql`
+   (`scripts/schema.mjs`). Any difference stops the deploy before the code
+   ships, naming the column or index.
+3. `wrangler deploy`, and the deploy tag.
+
+The code still live runs against the migrated database until step 3 replaces
+it, so a migration must suit both versions: add a column or a table, and drop
+or rename only in a later deploy, once no live code reads the old one.
+`test/migrations.test.ts` checks that everything the migrations add is in
+`schema.sql`. The reverse case, an edit to `schema.sql` with no migration, is
+what step 2 catches.
+
+Until 5 November 2026 migrations were run by hand and wrangler recorded none.
+`source_health.newest_run` reached production with no migration file, and a
+local copy built from an older `schema.sql` failed on every page. That day
+production was checked against `schema.sql`, found identical, and 0001–0007
+were recorded as applied.
+
+The local database (`npm run dev`) is disposable. `npm run db:reset:local`
+rebuilds it from `schema.sql` and `dev-seed.sql`, and `npm run
+db:migrate:local` applies new migrations to it.
+
 ## What ARPANSA's feed actually does
 
 Two findings from the live feed that the design document did not anticipate, both

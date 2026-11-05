@@ -9,6 +9,9 @@
 // could not be rebuilt from the archive later.
 
 import { execFileSync, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+import { schemaDifferences, shapeOf, shapeOfSql } from "./schema.mjs";
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
@@ -27,17 +30,52 @@ if (head !== git("rev-parse", "origin/main")) {
   refuse(`HEAD ${head.slice(0, 7)} is not origin/main. Deploy main, after it is pushed.`);
 }
 
-// Stream wrangler's output as usual, and keep a copy to read the version id from.
+// Run wrangler, streaming its output as usual and keeping a copy.
 // shell: true so Windows finds npx.cmd.
-let output = "";
-const code = await new Promise((resolve) => {
-  const child = spawn("npx", ["wrangler", "deploy"], { shell: true, stdio: ["inherit", "pipe", "inherit"] });
-  child.stdout.on("data", (chunk) => {
-    process.stdout.write(chunk);
-    output += chunk;
+function wrangler(...args) {
+  return new Promise((resolve) => {
+    let output = "";
+    const child = spawn("npx", ["wrangler", ...args], { shell: true, stdio: ["inherit", "pipe", "inherit"] });
+    child.stdout.on("data", (chunk) => {
+      process.stdout.write(chunk);
+      output += chunk;
+    });
+    child.on("close", (code) => resolve({ code, output }));
   });
-  child.on("close", resolve);
-});
+}
+
+// The database before the code, so new code never meets an old schema.
+//
+// 1. Apply any migration in migrations/ that production has not had. wrangler
+//    records each by name in d1_migrations, so a migration runs exactly once.
+//    The code still live runs against the result until step 3 replaces it, so
+//    a migration must suit both: add a column or table, never drop or rename
+//    one that live code reads (do that in a later deploy).
+// 2. Refuse unless production now matches schema.sql. This catches a column
+//    added to schema.sql without a migration -- the gap that let
+//    source_health.newest_run reach production by hand, with no file saying so.
+const migrated = await wrangler("d1", "migrations", "apply", "uvatlas", "--remote");
+if (migrated.code !== 0) refuse(`migrations failed (exit ${migrated.code}); the code was not deployed.`);
+
+const master = execFileSync(
+  "npx wrangler d1 execute uvatlas --remote --json --command \"SELECT type, name, sql FROM sqlite_master\"",
+  { encoding: "utf8", shell: true, stdio: ["inherit", "pipe", "inherit"] },
+);
+const differences = schemaDifferences(
+  shapeOfSql(readFileSync("schema.sql", "utf8")),
+  shapeOf(JSON.parse(master)[0].results),
+);
+if (differences.length > 0) {
+  refuse(
+    "production's schema does not match schema.sql, so the code was not deployed:\n  " +
+      differences.join("\n  ") +
+      "\nEvery schema change needs a file in migrations/ as well as the edit to schema.sql.",
+  );
+}
+console.log("Production schema matches schema.sql.\n");
+
+// 3. The code.
+const { code, output } = await wrangler("deploy");
 if (code !== 0) refuse(`wrangler deploy exited ${code}; nothing tagged.`);
 
 const version = output.match(/Current Version ID:\s*([0-9a-f-]{36})/i)?.[1] ?? "unknown";
