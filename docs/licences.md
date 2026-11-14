@@ -37,8 +37,11 @@ no template can show a reading without its attribution.
   advertising sales." And: "If you remix, transform, or build upon the
   material, you may not distribute the modified material." The developer
   conditions above are more specific to the feed, but this notice sits beside
-  them and is stricter. Until ARPANSA answers, treat promotion of the
-  Australian pages (link outreach included) as needing Keith's decision.
+  them and is stricter.
+- **Keith's decision, 14 November 2026:** go ahead with Australian link
+  outreach, on the assumption that ARPANSA will accept the site, and change
+  the Australian data source if it does not. Ads stay off in Australia until
+  ARPANSA gives written authorisation; that rule is unchanged.
 - **Letter sent 19 October 2026** to ARPANSA's UV team: developer notification,
   the chart question, and prior written authorisation for advertising.
 - **Site address sent 27 October 2026**, at launch, as the letter promised. No

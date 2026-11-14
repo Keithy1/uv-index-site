@@ -8,7 +8,26 @@ uvatlas. Written 27 October 2026.
 The site has been indexable since launch, so the first of the "two things to
 fix" below is done. Nothing had been sent to any candidate before today.
 
-**Australian outreach is on hold.** ARPANSA's copyright notice, read today on
+**Australian outreach: Keith decided on 14 November 2026 to go ahead**, on the
+assumption that ARPANSA will accept the site, and to change the Australian
+data source if it does not. Seven Tier 1 bodies were written to, each address
+re-read from the organisation's own contact page that day, and sent at about
+18:02 UTC with his go-ahead. One follow-up each is due from 24 November:
+
+| Organisation | Address | Page offered | Status |
+|---|---|---|---|
+| WorkSafe WA | `CommunityEducationOfficers@lgirs.wa.gov.au` | Perth; its sun safety page links BoM and myUV | Sent 14 Nov |
+| Sydney North Health Network | `info@snhn.org.au` | Sydney; its UV index article | Sent 14 Nov |
+| Cancer Council Queensland | `Reducingcancerrisk@cancerqld.org.au` | Brisbane, Gold Coast, Townsville, Emerald | Sent 14 Nov |
+| Cancer Council SA | `cc@cancersa.org.au` | Adelaide. Its "SunSmart and skin resources" page now returns 404 | Sent 14 Nov |
+| Cancer Council Victoria | `enquiries@cancervic.org.au` | Melbourne | Sent 14 Nov |
+| Melanoma Institute Australia | `info@melanoma.org.au` | Sydney, Australian list | Sent 14 Nov |
+| Australian Melanoma Research Foundation | `admin@melanomaresearch.com.au` | Adelaide; its winter UV article links only the SunSmart app | Sent 14 Nov |
+
+Not written to: ARPANSA itself, while the licence letters are open, and the
+Tier 2 outdoor sites, which need a true sentence about each site first.
+
+The reason for the earlier hold: ARPANSA's copyright notice, read today on
 its developer page, says: "You must NOT use information or material from this
 website to sell a product or service, or to increase traffic to your website
 for commercial reasons, such as advertising sales." Asking Australian bodies to
