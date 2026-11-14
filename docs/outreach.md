@@ -3,6 +3,51 @@
 Candidates, contacts and draft email text for getting other sites to link to
 uvatlas. Written 27 October 2026.
 
+## Update, 14 November 2026
+
+The site has been indexable since launch, so the first of the "two things to
+fix" below is done. Nothing had been sent to any candidate before today.
+
+**Australian outreach is on hold.** ARPANSA's copyright notice, read today on
+its developer page, says: "You must NOT use information or material from this
+website to sell a product or service, or to increase traffic to your website
+for commercial reasons, such as advertising sales." Asking Australian bodies to
+link to pages that show ARPANSA readings is an attempt to increase traffic, and
+the site plans ads. ARPANSA has not answered the letters of 19 and 27 October.
+Whether to write to Australian candidates before it does is Keith's decision.
+See `docs/licences.md`.
+
+**First wave: seven US organisations**, each sent as its own email on
+14 November 2026 at about 17:47 UTC, with Keith's go-ahead, and pointed at its
+own city page. One follow-up each is due from 24 November, as a reply in the
+same thread with no URL in the new text. US pages carry only EPA and CAMS data, which
+allow commercial use. Addresses were read off each organisation's own site
+today.
+
+| Organisation | Address | Page offered | Status |
+|---|---|---|---|
+| Richard David Kann Melanoma Foundation | `info@melanomafoundation.com` | Miami, Tampa, Jacksonville | Sent 14 Nov |
+| Outrun the Sun | `info@outrunthesun.org` | Indianapolis | **Bounced 14 Nov**: `550 5.4.1 Recipient address rejected: Access denied` from its Microsoft 365 server. The address is on its site behind Cloudflare's email obfuscation; phone (317) 253-2121 or the site's contact form are the routes left |
+| AIM at Melanoma | `info@AIMatMelanoma.org` (footer address; the page's "EngageUs" text and link disagree) | Dallas, Fort Worth, US list | Sent 14 Nov |
+| IMPACT Melanoma (Concord, MA) | `info@impactmelanoma.org` | Boston | Sent 14 Nov |
+| Nevada Cancer Coalition (Sun Smart Nevada) | `info@nevadacancercoalition.org` | Las Vegas | Sent 14 Nov |
+| Melanoma Research Alliance | `info@curemelanoma.org` | Washington DC, US list; its UV index page links only the EPA app | Sent 14 Nov |
+| Colette Coyne Melanoma Awareness Campaign | `CMBC1@optonline.net` | New York | Sent 14 Nov |
+
+Held back from the first wave: The Skin Cancer Foundation, which has a UV index
+partnership with AccuWeather, and the Melanoma Research Foundation.
+
+Looked at and dropped: Arizona Skin Cancer Foundation (site sits behind a bot
+check, address unverified), The Sun Bus / Colorado Melanoma Foundation and Sun
+Safety for Kids (no address published), Mollie's Fund (form only). Copernicus
+ran a call for CAMS use cases that closed in April 2024; its
+[use-case form](https://atmosphere.copernicus.eu/submit-your-cams-c3s-data-use-cases)
+is worth checking by hand.
+
+The emails drop three claims from draft A below: "no trackers" (the site now
+counts page views), "loads in well under a second" (never measured), and the
+reciprocal-link offer.
+
 ## Read this before sending anything
 
 **The premise needs one correction.** Reciprocal link exchange — "link to me and

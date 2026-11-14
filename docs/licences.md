@@ -28,6 +28,17 @@ no template can show a reading without its attribution.
   rare, and Keith judged the risk acceptable pending ARPANSA's answer. If they
   say charts are modification, remove the fallback; if they say yes, measured
   charts can be built properly.
+- **Site-wide copyright notice, read 14 November 2026** on the same developer
+  page
+  (https://www.arpansa.gov.au/our-services/monitoring/ultraviolet-radiation-monitoring/ultraviolet-radiation-data-information-developers).
+  It licenses the site's material CC BY-NC-ND 4.0 and says: "You must NOT use
+  information or material from this website to sell a product or service, or
+  to increase traffic to your website for commercial reasons, such as
+  advertising sales." And: "If you remix, transform, or build upon the
+  material, you may not distribute the modified material." The developer
+  conditions above are more specific to the feed, but this notice sits beside
+  them and is stricter. Until ARPANSA answers, treat promotion of the
+  Australian pages (link outreach included) as needing Keith's decision.
 - **Letter sent 19 October 2026** to ARPANSA's UV team: developer notification,
   the chart question, and prior written authorisation for advertising.
 - **Site address sent 27 October 2026**, at launch, as the letter promised. No
